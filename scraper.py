@@ -28,20 +28,3 @@ print(id)
 
 tour_json = get_tour_info(id)
 print(tour_json)
-
-"""
-
-with open("output.txt", 'w') as f:
-    f.write(html)
-
-artist_id = "205a1ad5-4413-4e72-9912-5aa8d3a6207e" # steven day
-api = f"https://cdn.seated.com/api/tour/{artist_id}?include=tour-events"
-
-
-page = urlopen(api)
-
-html_bytes = page.read()
-json = html_bytes.decode("utf-8")
-
-print(json)
-"""
