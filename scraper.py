@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import json
 import os
 
+home = 'Alexandria, Virginia'
 
 load_dotenv()
 API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
@@ -15,9 +16,43 @@ class Concert():
         self.end_date = attribute['ends-at-date-local']
         self.venue = attribute['venue-name']
         self.city = attribute['formatted-address']
+        
+        self.address = self.get_address()
 
         # make distance function to get distance from starting address
         # self.distance = X
+        # self.address as well
+
+    def get_address(self):
+        # replace spaces with a plus for the url
+        name = self.venue.replace(" ", "+")
+        city = self.city.replace(" ", "+")
+        api = f"https://maps.googleapis.com/maps/api/geocode/json?address={name},{city},+MI&key={API_KEY}"
+        page = urlopen(api)
+        html_bytes = page.read()
+        
+        response_string = html_bytes.decode("utf-8")
+        maps_json = json.loads(response_string)
+
+        # return maps_json['results'][0]['plus_code']['global_code'] # just in case
+        return maps_json['results'][0]['formatted_address']
+    
+    def distance(self):
+        start = os.getenv('START_LOC')
+        start = start.replace(" ", "+")
+        venue = self.address.replace(" ", "+")
+        api = f"https://maps.googleapis.com/maps/api/directions/json?departure_time=now&destination={venue}&origin={start}&key={API_KEY}"
+
+        print(api)
+        
+        page = urlopen(api)
+        html_bytes = page.read()
+        
+        response_string = html_bytes.decode("utf-8")
+        travel_json = json.loads(response_string)
+        print(travel_json)
+        with open('travel.json', 'w') as f:
+            f.write(response_string)
 
 
 def get_artist_id(url):
@@ -43,32 +78,16 @@ def get_tour_info(artist_id):
 
     return tour_json
 
-def get_address(name, city):
-    # replace spaces with a plus
-    name = name.replace(" ", "+")
-    city = city.replace(" ", "+")
-    api = f"https://maps.googleapis.com/maps/api/geocode/json?address={name},{city},+MI&key={API_KEY}"
-    page = urlopen(api)
-    html_bytes = page.read()
-    response_string = html_bytes.decode("utf-8")
-    maps_json = json.loads(response_string)
-    print(maps_json['results'][0]['formatted_address'])
     
-
 url = "http://stephenday.org/tour"
 id = get_artist_id(url)
-print(id)
 
 tour_json = get_tour_info(id)
 for i in tour_json['included']:
     attribute = i['attributes']
-    print(json.dumps(attribute, indent=1))
-
     c1 = Concert(id, attribute)
-    print(c1.city)
-    print(c1.venue)
-    get_address(c1.venue, c1.city)
-
+    
+    print(c1.address)
+    c1.distance()
     exit()
 
-# separate the data
