@@ -1,14 +1,24 @@
 from urllib.request import urlopen
+from dotenv import load_dotenv
 import json
+import os
+from OSMPythonTools.overpass import Overpass
+
+overpass = Overpass()
+load_dotenv()
 
 class Concert():
-    def __init__(self, artist, is_sold_out, start_date, end_date, venue, address):
-        self.artist = artist
-        self.is_sold_out = is_sold_out
-        self.start_date = start_date
-        self.end_date = end_date
-        self.venue = venue
-        self.address = address
+    def __init__(self, artist_id, attribute):
+        self.artist_id = artist_id
+        self.is_sold_out = attribute['is-sold-out']
+        self.start_date = attribute['starts-at-date-local']
+        self.end_date = attribute['ends-at-date-local']
+        self.venue = attribute['venue-name']
+        self.address = attribute['formatted-address']
+
+        # make distance function to get distance from starting address
+        # self.distance = X
+
 
 def get_artist_id(url):
     page = urlopen(url)
@@ -41,10 +51,16 @@ tour_json = get_tour_info(id)
 for i in tour_json['included']:
     attribute = i['attributes']
     print(json.dumps(attribute, indent=1))
-    is_sold_out = attribute['is-sold-out']
-    start_date = attribute['starts-at-date-local']
-    end_date = attribute['ends-at-date-local']
-    venue = attribute['venue-name']
-    address = attribute['formatted-address']
+
+    c1 = Concert(id, attribute)
+    print(c1.address)
+    print(c1.venue)
+    query = c1.venue + " " + c1.address
+    print(query)
+
+    result = overpass.query('way["name"="The White House"]; out body;')
+    location = result.elements()[0]
+    print(location)
+    exit()
 
 # separate the data
