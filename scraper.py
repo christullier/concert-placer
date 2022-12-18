@@ -18,6 +18,7 @@ class Concert():
         self.city = attribute['formatted-address']
         
         self.address = self.get_address()
+        self.travel_time = self.get_travel_time()
 
         # make distance function to get distance from starting address
         # self.distance = X
@@ -37,7 +38,7 @@ class Concert():
         # return maps_json['results'][0]['plus_code']['global_code'] # just in case
         return maps_json['results'][0]['formatted_address']
     
-    def distance(self):
+    def get_travel_time(self):
         start = os.getenv('START_LOC')
         start = start.replace(" ", "+")
         venue = self.address.replace(" ", "+")
@@ -50,9 +51,11 @@ class Concert():
         
         response_string = html_bytes.decode("utf-8")
         travel_json = json.loads(response_string)
-        print(travel_json)
-        with open('travel.json', 'w') as f:
-            f.write(response_string)
+        length_seconds = travel_json['routes'][0]['legs'][0]['duration']['value']
+        print(str(round(int(length_seconds)/3600, 2)) + " hours")
+        return round(int(length_seconds)/3600, 2)
+        # with open('travel.json', 'w') as f:
+        #     f.write(response_string)
 
 
 def get_artist_id(url):
@@ -88,6 +91,6 @@ for i in tour_json['included']:
     c1 = Concert(id, attribute)
     
     print(c1.address)
-    c1.distance()
+    print(c1.travel_time)
     exit()
 
