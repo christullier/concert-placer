@@ -55,10 +55,10 @@ for i in tour_json['included']:
     c1 = Concert(id, attribute)
     print(c1.address)
     print(c1.venue)
-    query = c1.venue + " " + c1.address
+    query = c1.address
     print(query)
 
-    result = overpass.query('way["name"="The White House"]; out body;')
+    result = overpass.query(f'way["name"="{query}"]; out body;')
     location = result.elements()[0]
     print(location)
     exit()
