@@ -1,12 +1,15 @@
 from urllib.request import urlopen
 from dotenv import load_dotenv
+from special_char import special_char
 import json
 import os
 
-home = 'Alexandria, Virginia'
-
 load_dotenv()
 API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
+global COUNTER
+global MAX_TRIES
+COUNTER = 0
+MAX_TRIES = 5
 
 class Concert():
     def __init__(self, artist_id, attribute):
@@ -18,18 +21,21 @@ class Concert():
         self.city = attribute['formatted-address']
         
         self.address = self.get_address()
-        self.travel_time = self.get_travel_time()
+        self.distance = self.get_travel_distance()
 
-        # make distance function to get distance from starting address
-        # self.distance = X
-        # self.address as well
 
     def get_address(self):
         # replace spaces with a plus for the url
         name = self.venue.replace(" ", "+")
         city = self.city.replace(" ", "+")
-        api = f"https://maps.googleapis.com/maps/api/geocode/json?address={name},{city},+MI&key={API_KEY}"
-        page = urlopen(api)
+        api = f'https://maps.googleapis.com/maps/api/geocode/json?address={name},{city},+MI&key={API_KEY}'
+
+        try:
+            page = urlopen(api)
+        except UnicodeEncodeError:
+            print("OOPS")
+            exit()
+
         html_bytes = page.read()
         
         response_string = html_bytes.decode("utf-8")
@@ -38,25 +44,50 @@ class Concert():
         # return maps_json['results'][0]['plus_code']['global_code'] # just in case
         return maps_json['results'][0]['formatted_address']
     
-    def get_travel_time(self):
+    def get_travel_distance(self):
         start = os.getenv('START_LOC')
         start = start.replace(" ", "+")
         venue = self.address.replace(" ", "+")
-        api = f"https://maps.googleapis.com/maps/api/directions/json?departure_time=now&destination={venue}&origin={start}&key={API_KEY}"
+        api = f'https://maps.googleapis.com/maps/api/directions/json?departure_time=now&destination={venue}&origin={start}&key={API_KEY}'
 
         print(api)
+ 
+        # this is getting a ascii-incompatible character from a german city, throwing error
+        # tool to find special characters and convert them to ascii-safe versions?
+        try: 
+            page = urlopen(api)
+            print(api)
+        except UnicodeEncodeError as e:
+            # grab part of error that has the character encoded in base 16
+            message = str(e).split()
+            base_16 = message[5]
+            index = int(message[8][0:-1])
+            # remove quotes and x from beginning
+            base_16 = base_16[3:-1]
+            ascii_value = int(base_16, 16)
+            char = chr(ascii_value)
+            out = special_char(char)
+
+            print(e)
+            print(index)
+            print(ascii_value)
+            
+            if (out != None) and (MAX_TRIES > COUNTER):
+                COUNTER += 1
+                print(out)
+                self.address.replace(char, out)
+                self.distance = self.get_travel_distance()
+            exit()
         
-        page = urlopen(api)
         html_bytes = page.read()
         
         response_string = html_bytes.decode("utf-8")
         travel_json = json.loads(response_string)
-        length_seconds = travel_json['routes'][0]['legs'][0]['duration']['value']
-        print(str(round(int(length_seconds)/3600, 2)) + " hours")
-        return round(int(length_seconds)/3600, 2)
-        # with open('travel.json', 'w') as f:
-        #     f.write(response_string)
-
+        length_meters = travel_json['routes'][0]['legs'][0]['distance']['value']
+        # travel time in hours:
+        # length_seconds = travel_json['routes'][0]['legs'][0]['duration']['value']
+        # return round(int(length_seconds)/3600, 2)
+        return round(int(length_meters)/1609, 2)
 
 def get_artist_id(url):
     page = urlopen(url)
@@ -65,12 +96,14 @@ def get_artist_id(url):
 
     # find 'artist-id'
     # 11 to account for the name and the open quote
-    start = html.find('artist-id=') + 11 
+    start = html.find('artist-id="') + 11
+    # the artist-id is 36 characters long
     end = start + 36
 
     artist_id = html[start:end]
     return artist_id
 
+# have a different workflow in case the artist doesn't use Seated
 def get_tour_info(artist_id):
     api = f"https://cdn.seated.com/api/tour/{artist_id}?include=tour-events"
 
@@ -82,15 +115,15 @@ def get_tour_info(artist_id):
     return tour_json
 
     
-url = "http://stephenday.org/tour"
-id = get_artist_id(url)
+url = os.getenv('ARTIST_URL')
+artist_id = get_artist_id(url)
 
-tour_json = get_tour_info(id)
+tour_json = get_tour_info(artist_id)
+
 for i in tour_json['included']:
     attribute = i['attributes']
-    c1 = Concert(id, attribute)
+    c1 = Concert(artist_id, attribute)
     
     print(c1.address)
-    print(c1.travel_time)
-    exit()
+    print(c1.distance)
 
