@@ -1,6 +1,6 @@
 cache
+__pycache__/*
 
 .env
 *.txt
 *.json
-__pycache__/*
