@@ -2,7 +2,7 @@
 ## TODO
 - [ ] scrape data from artist website
 - [x] Concert class
-- [ ] Artist class?
+- [ ] Artist class? nah
 
 
 ## PROGRESS 
