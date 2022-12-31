@@ -12,3 +12,11 @@
 - plot an address on google maps or something
   - tried Open Street Map (OSM) without luck, their naming 
 - find a way to find the distance from a start location
+
+
+12/31/2022
+- google maps can't find distance across oceans (oops)
+- what to do with these results?
+  - ignore them?
+  - calculate distance manually?
+  - do a pre-check for results not in the same country? continent?
