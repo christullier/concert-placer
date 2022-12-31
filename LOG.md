@@ -6,5 +6,5 @@
   - do a pre-check for results not in the same country? continent?
 
 learned how to rewrite git history with git-filter-repo
-https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History
-https://stackoverflow.com/questions/1270514/undoing-a-git-push
+- https://git-scm.com/book/en/v2/Git-Tools-Rewriting-History
+- https://stackoverflow.com/questions/1270514/undoing-a-git-push
