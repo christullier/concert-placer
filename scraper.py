@@ -6,8 +6,6 @@ import os
 
 load_dotenv()
 API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
-global COUNTER
-global MAX_TRIES
 COUNTER = 0
 MAX_TRIES = 5
 
@@ -50,16 +48,16 @@ class Concert():
         venue = self.address.replace(" ", "+")
         api = f'https://maps.googleapis.com/maps/api/directions/json?departure_time=now&destination={venue}&origin={start}&key={API_KEY}'
 
-        print(api)
+        # print(api)
  
         # this is getting a ascii-incompatible character from a german city, throwing error
         # tool to find special characters and convert them to ascii-safe versions?
         try: 
             page = urlopen(api)
-            print(api)
-        except UnicodeEncodeError as e:
+        except UnicodeEncodeError as UEE:
+            global COUNTER # declaring here because it *modifies* the global var
             # grab part of error that has the character encoded in base 16
-            message = str(e).split()
+            message = str(UEE).split()
             base_16 = message[5]
             index = int(message[8][0:-1])
             # remove quotes and x from beginning
@@ -68,26 +66,35 @@ class Concert():
             char = chr(ascii_value)
             out = special_char(char)
 
-            print(e)
-            print(index)
-            print(ascii_value)
+            # print(f"{UEE=}")
+            # print(f"{index=}")
+            # print(f"{ascii_value=}")
+            # print(f"{char=}")
+            # print(f"{out=}")
             
             if (out != None) and (MAX_TRIES > COUNTER):
                 COUNTER += 1
-                print(out)
-                self.address.replace(char, out)
+                self.address = self.address.replace(char, out)
                 self.distance = self.get_travel_distance()
-            exit()
+            return
+        except IndexError as IE:
+            print("This is probably not ")
         
         html_bytes = page.read()
         
         response_string = html_bytes.decode("utf-8")
         travel_json = json.loads(response_string)
-        length_meters = travel_json['routes'][0]['legs'][0]['distance']['value']
-        # travel time in hours:
-        # length_seconds = travel_json['routes'][0]['legs'][0]['duration']['value']
-        # return round(int(length_seconds)/3600, 2)
-        return round(int(length_meters)/1609, 2)
+        if travel_json['status'] != "OK":
+            print("\nNAVIGATION ERROR ")
+            print(F"LOCATION: {self.address}")
+            print(travel_json['status'])
+        
+        else: # all is working
+            length_meters = travel_json['routes'][0]['legs'][0]['distance']['value']
+            # travel time in hours:
+            # length_seconds = travel_json['routes'][0]['legs'][0]['duration']['value']
+            # return round(int(length_seconds)/3600, 2)
+            return round(int(length_meters)/1609, 2)
 
 def get_artist_id(url):
     page = urlopen(url)
@@ -126,4 +133,5 @@ for i in tour_json['included']:
     
     print(c1.address)
     print(c1.distance)
+    print()
 
