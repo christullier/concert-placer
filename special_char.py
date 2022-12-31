@@ -63,7 +63,7 @@ def special_char(special_char):
         case 'Þ': 
             return '%C3%9E'
         case 'ß': 
-            return '%C3%9F'
+            return 's'
         case 'à': 
             return '%C3%A0'
         case 'á': 
