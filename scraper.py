@@ -1,6 +1,6 @@
 from urllib.request import urlopen
 from dotenv import load_dotenv
-from special_char import special_char
+from special_char_replacement import special_char_replacement
 import json
 import os
 
@@ -15,12 +15,13 @@ class Concert():
         self.is_sold_out = attribute['is-sold-out']
         self.start_date = attribute['starts-at-date-local']
         self.end_date = attribute['ends-at-date-local']
-        self.venue = attribute['venue-name']
-        self.city = attribute['formatted-address']
+        self.venue = self.ascii_fix(attribute['venue-name'])
+        self.city = self.ascii_fix(attribute['formatted-address'])
         
         self.address = self.get_address()
         self.distance = self.get_travel_distance()
 
+        self.is_drivable = True
 
     def get_address(self):
         # replace spaces with a plus for the url
@@ -28,73 +29,68 @@ class Concert():
         city = self.city.replace(" ", "+")
         api = f'https://maps.googleapis.com/maps/api/geocode/json?address={name},{city},+MI&key={API_KEY}'
 
-        try:
-            page = urlopen(api)
-        except UnicodeEncodeError:
-            print("OOPS")
-            exit()
+        page = urlopen(api)
 
         html_bytes = page.read()
         
         response_string = html_bytes.decode("utf-8")
         maps_json = json.loads(response_string)
-
+        address = maps_json['results'][0]['formatted_address']
+        address = self.ascii_fix(address)
         # return maps_json['results'][0]['plus_code']['global_code'] # just in case
-        return maps_json['results'][0]['formatted_address']
-    
+        return address
+
+    # checks the address for valid characters so we don't have to get an error later
+    def ascii_fix(self, value):
+        if not value.isascii():
+            for i, c in enumerate(value):
+                if not c.isascii():
+                    r = special_char_replacement(c)
+                    value = value.replace(c, r)
+        return value
+        
     def get_travel_distance(self):
         start = os.getenv('START_LOC')
         start = start.replace(" ", "+")
         venue = self.address.replace(" ", "+")
         api = f'https://maps.googleapis.com/maps/api/directions/json?departure_time=now&destination={venue}&origin={start}&key={API_KEY}'
 
-        # print(api)
- 
-        # this is getting a ascii-incompatible character from a german city, throwing error
-        # tool to find special characters and convert them to ascii-safe versions?
-        try: 
-            page = urlopen(api)
-        except UnicodeEncodeError as UEE:
-            global COUNTER # declaring here because it *modifies* the global var
-            # grab part of error that has the character encoded in base 16
-            message = str(UEE).split()
-            base_16 = message[5]
-            index = int(message[8][0:-1])
-            # remove quotes and x from beginning
-            base_16 = base_16[3:-1]
-            ascii_value = int(base_16, 16)
-            char = chr(ascii_value)
-            out = special_char(char)
-
-            # print(f"{UEE=}")
-            # print(f"{index=}")
-            # print(f"{ascii_value=}")
-            # print(f"{char=}")
-            # print(f"{out=}")
-            
-            if (out != None) and (MAX_TRIES > COUNTER):
-                COUNTER += 1
-                self.address = self.address.replace(char, out)
-                self.distance = self.get_travel_distance()
-            return
-        except IndexError as IE:
-            print("This is probably not ")
-        
+        page = urlopen(api)
         html_bytes = page.read()
-        
         response_string = html_bytes.decode("utf-8")
         travel_json = json.loads(response_string)
+        
+        # is there a path?
         if travel_json['status'] != "OK":
             print("\nNAVIGATION ERROR ")
             print(F"LOCATION: {self.address}")
             print(travel_json['status'])
+            self.is_drivable = False
         
-        else: # all is working
+        # all is working
+        else: 
             length_meters = travel_json['routes'][0]['legs'][0]['distance']['value']
             # travel time in hours:
             # length_seconds = travel_json['routes'][0]['legs'][0]['duration']['value']
             # return round(int(length_seconds)/3600, 2)
             return round(int(length_meters)/1609, 2)
+        
+    def print_info(self):
+        print()
+        print(self)
+
+        if not self.is_sold_out:
+            print("**SOLD OUT**")
+            return  
+        if not self.is_drivable:
+            print("**not driveable")
+            return
+
+        print(self.distance)
+    
+    def __str__(self):
+        return f"{self.city}\n{self.start_date}"
+
 
 def get_artist_id(url):
     page = urlopen(url)
@@ -111,6 +107,7 @@ def get_artist_id(url):
     return artist_id
 
 # have a different workflow in case the artist doesn't use Seated
+# sammy rae and friends use bandsintown https://rest.bandsintown.com/artists/Sammy Rae Music/events?app_id=squarespace-blackbird-frog-4sgd&date=upcoming
 def get_tour_info(artist_id):
     api = f"https://cdn.seated.com/api/tour/{artist_id}?include=tour-events"
 
@@ -131,7 +128,4 @@ for i in tour_json['included']:
     attribute = i['attributes']
     c1 = Concert(artist_id, attribute)
     
-    print(c1.address)
-    print(c1.distance)
-    print()
-
+    c1.print_info()
