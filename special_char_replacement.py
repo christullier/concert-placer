@@ -1,4 +1,4 @@
-def special_char(special_char):
+def special_char_replacement(special_char):
     match special_char:
         case 'À': 
             return '%C3%80'
