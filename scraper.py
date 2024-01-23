@@ -17,7 +17,7 @@ class Concert():
         self.end_date = attribute['ends-at-date-local']
         self.venue = self.ascii_fix(attribute['venue-name'])
         self.city = self.ascii_fix(attribute['formatted-address'])
-        
+
         self.address = self.get_address()
         self.distance = self.get_travel_distance()
 
@@ -32,7 +32,7 @@ class Concert():
         page = urlopen(api)
 
         html_bytes = page.read()
-        
+
         response_string = html_bytes.decode("utf-8")
         maps_json = json.loads(response_string)
         address = maps_json['results'][0]['formatted_address']
@@ -48,7 +48,7 @@ class Concert():
                     r = special_char_replacement(c)
                     value = value.replace(c, r)
         return value
-        
+
     def get_travel_distance(self):
         start = os.getenv('START_LOC')
         start = start.replace(" ", "+")
@@ -59,35 +59,35 @@ class Concert():
         html_bytes = page.read()
         response_string = html_bytes.decode("utf-8")
         travel_json = json.loads(response_string)
-        
+
         # is there a path?
         if travel_json['status'] != "OK":
             print("\nNAVIGATION ERROR ")
             print(F"LOCATION: {self.address}")
             print(travel_json['status'])
             self.is_drivable = False
-        
+
         # all is working
-        else: 
+        else:
             length_meters = travel_json['routes'][0]['legs'][0]['distance']['value']
             # travel time in hours:
             # length_seconds = travel_json['routes'][0]['legs'][0]['duration']['value']
             # return round(int(length_seconds)/3600, 2)
             return round(int(length_meters)/1609, 2)
-        
+
     def print_info(self):
         print()
         print(self)
 
-        if not self.is_sold_out:
+        if self.is_sold_out:
             print("**SOLD OUT**")
-            return  
-        if not self.is_drivable:
+            return
+        elif not self.is_drivable:
             print("**not driveable")
             return
 
         print(self.distance)
-    
+
     def __str__(self):
         return f"{self.city}\n{self.start_date}"
 
@@ -118,7 +118,7 @@ def get_tour_info(artist_id):
 
     return tour_json
 
-    
+
 url = os.getenv('ARTIST_URL')
 artist_id = get_artist_id(url)
 
@@ -127,5 +127,5 @@ tour_json = get_tour_info(artist_id)
 for i in tour_json['included']:
     attribute = i['attributes']
     c1 = Concert(artist_id, attribute)
-    
+
     c1.print_info()
