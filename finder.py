@@ -41,7 +41,7 @@ class Concert():
         return address
 
     # checks the address for valid characters so we don't have to get an error later
-    def ascii_fix(self, value):
+    def ascii_fix(self, value: str):
         if not value.isascii():
             for i, c in enumerate(value):
                 if not c.isascii():
