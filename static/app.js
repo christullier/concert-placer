@@ -250,6 +250,9 @@ function renderCards() {
   const visible = visibleConcerts.length;
   const clearLink = '<button type="button" class="filter-clear">Clear filters</button>';
 
+  const filterRow = document.querySelector(".filter-row");
+  if (filterRow) filterRow.hidden = total === 0;
+
   if (!total) {
     summary.textContent = "No upcoming shows found";
   } else if (visible === 0) {
