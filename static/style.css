@@ -404,7 +404,6 @@ body {
   padding: 13px 15px;
   cursor: pointer;
   transition: transform 0.12s, border-color 0.15s, background 0.15s;
-  overflow: hidden;
 }
 
 .card::before {
@@ -470,8 +469,73 @@ body {
 }
 
 .card-date {
+  appearance: none;
+  position: relative;
+  border: 0;
+  padding: 0;
+  background: transparent;
   font-size: 13px;
   color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.card-date-text {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border-bottom: 1px dotted rgba(232, 236, 245, 0.6);
+}
+
+.card-date:hover .card-date-text,
+.card-date:focus-visible .card-date-text,
+.card-date.open .card-date-text {
+  color: #fff;
+  border-bottom-color: var(--accent-b);
+}
+
+.card-date:focus-visible {
+  outline: 2px solid rgba(34, 211, 238, 0.75);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.date-popover {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  min-width: max-content;
+  max-width: 190px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: rgba(11, 13, 18, 0.96);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 0.12s, transform 0.12s;
+}
+
+.date-popover::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 100%;
+  border: 6px solid transparent;
+  border-top-color: var(--border-strong);
+}
+
+.card-date:hover .date-popover,
+.card-date:focus-visible .date-popover,
+.card-date.open .date-popover {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .chip {

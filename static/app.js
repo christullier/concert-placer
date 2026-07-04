@@ -114,7 +114,7 @@ function sortedConcerts() {
 
 function formatDate(iso) {
   if (!iso) return "Date TBA";
-  const date = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  const date = parseDateOnly(iso);
   if (Number.isNaN(date.getTime())) return iso;
   return date.toLocaleDateString(undefined, {
     weekday: "short",
@@ -122,6 +122,44 @@ function formatDate(iso) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function parseDateOnly(iso) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? "");
+  if (!match) return new Date(`${iso?.slice(0, 10)}T12:00:00`);
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12);
+}
+
+function daysUntilDate(iso) {
+  const date = parseDateOnly(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const dateUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  return Math.round((dateUtc - todayUtc) / 86400000);
+}
+
+function formatDaysUntil(iso) {
+  const days = daysUntilDate(iso);
+  if (days == null) return "Date TBA";
+  if (days === 1) return "1 day";
+  return `${days} days`;
+}
+
+function cardDateHtml(iso) {
+  const actualDate = formatDate(iso);
+  const daysUntil = formatDaysUntil(iso);
+  return `
+    <button
+      type="button"
+      class="card-date"
+      aria-label="${escapeHtml(actualDate)}"
+      aria-expanded="false"
+    >
+      <span class="card-date-text">${escapeHtml(daysUntil)}</span>
+      <span class="date-popover" role="tooltip">${escapeHtml(actualDate)}</span>
+    </button>
+  `;
 }
 
 function statusChip(concert) {
@@ -160,11 +198,15 @@ function renderCards() {
       </div>
       <div class="card-city">${escapeHtml(concert.city)}</div>
       <div class="card-bottom">
-        <span class="card-date">${formatDate(concert.start_date)}</span>
+        ${cardDateHtml(concert.start_date)}
         ${statusChip(concert)}
       </div>
       ${error}
     `;
+    li.querySelector(".card-date")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleDatePopover(event.currentTarget);
+    });
     li.addEventListener("click", () => select(id, { pan: true }));
     cards.appendChild(li);
   }
@@ -241,6 +283,21 @@ function select(id, { pan }) {
     if (pan) map.panTo(marker.getLatLng());
     marker.openPopup();
   }
+}
+
+function closeDatePopovers(except = null) {
+  document.querySelectorAll(".card-date.open").forEach((button) => {
+    if (button === except) return;
+    button.classList.remove("open");
+    button.setAttribute("aria-expanded", "false");
+  });
+}
+
+function toggleDatePopover(button) {
+  const willOpen = !button.classList.contains("open");
+  closeDatePopovers(button);
+  button.classList.toggle("open", willOpen);
+  button.setAttribute("aria-expanded", String(willOpen));
 }
 
 function escapeHtml(text) {
@@ -589,6 +646,10 @@ initSortControls();
 el("search-form").addEventListener("submit", (event) => {
   event.preventDefault();
   search();
+});
+document.addEventListener("click", () => closeDatePopovers());
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeDatePopovers();
 });
 loadDefaults();
 loadSavedArtists();
