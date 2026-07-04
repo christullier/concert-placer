@@ -77,29 +77,41 @@ async def read_musicbrainz_json_async(url: str) -> dict:
 
 
 def get_artist_id_from_html(html: str) -> str:
-    match = re.search(r'artist-id="([^"]+)"', html)
-    if not match:
-        raise RuntimeError("Could not find artist-id in the artist page.")
-    return match.group(1)
+    for pattern in (
+        r'(?:^|\s)artist-id="([^"]+)"',
+        r'data-artist-id="([^"]+)"',
+    ):
+        match = re.search(pattern, html)
+        if match:
+            return match.group(1)
+    raise RuntimeError("Could not find artist-id in the artist page.")
 
 
 def get_artist_id(url: str, *, timeout: int = REQUEST_TIMEOUT_SECONDS) -> str:
     return get_artist_id_from_html(read_url(url, timeout=timeout))
 
 
+def _has_seated_widget(html: str) -> bool:
+    lowered = html.lower()
+    if re.search(r'(?:^|\s)artist-id="[^"]+"', html):
+        return True
+    if 'data-artist-id="' in html and ("widget.seated.com" in lowered or "cdn.seated.com" in lowered):
+        return True
+    return False
+
+
 def detect_tour_provider(html: str) -> str | None:
     lowered = html.lower()
-    if re.search(r'artist-id="[^"]+"', html):
-        return "seated"
-    if (
-        "squarespace-events-collection" in lowered or "squarespace-tourdates" in lowered
-    ) and not any(
-        marker in lowered
-        for marker in ("bandsintown", "songkick", "seated.com", "eventbrite", "dice.fm")
-    ):
-        return "squarespace-events"
     if "bandsintown" in lowered:
         return "bandsintown"
+    if _has_seated_widget(html):
+        return "seated"
+    if "squarespace-events-collection" in lowered or "squarespace-tourdates" in lowered:
+        if not any(
+            marker in lowered
+            for marker in ("bandsintown", "songkick", "eventbrite", "dice.fm")
+        ) and not _has_seated_widget(html):
+            return "squarespace-events"
     if "widget.songkick.com" in lowered or "songkick-widget" in lowered:
         return "songkick"
     if "eventbrite" in lowered:
