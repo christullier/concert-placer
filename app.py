@@ -1,4 +1,5 @@
 import asyncio
+import ipaddress
 import hashlib
 import json
 import os
@@ -7,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -16,6 +17,7 @@ from finder import (
     ConfigError,
     geocode_start,
     get_tour,
+    read_json_async,
     require_env,
     resolve_seated_artist_url,
     search_musicbrainz_artists,
@@ -26,6 +28,15 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 ARTISTS_FILE = BASE_DIR / "saved_artists.json"
+IP_GEOLOCATION_URLS = [
+    url.strip()
+    for url in os.getenv(
+        "IP_GEOLOCATION_URLS",
+        "https://ipapi.co/{ip_path}json/,https://ipwho.is/{ip}",
+    ).split(",")
+    if url.strip()
+]
+IP_GEOLOCATION_TIMEOUT_SECONDS = 5
 
 app = FastAPI(title="concert-placer")
 
@@ -62,6 +73,44 @@ def _save_artists(artists: list[dict]) -> None:
     ARTISTS_FILE.write_text(json.dumps(artists, indent=2), "utf-8")
 
 
+def _public_client_ip(request: Request) -> str | None:
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    candidates = [ip.strip() for ip in forwarded_for.split(",") if ip.strip()]
+    if request.client and request.client.host:
+        candidates.append(request.client.host)
+
+    for candidate in candidates:
+        try:
+            ip = ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        if ip.is_global:
+            return str(ip)
+    return None
+
+
+def _format_location_guess(data: dict) -> str | None:
+    city = data.get("city")
+    region = data.get("region_code") or data.get("region")
+    country = data.get("country_name") or data.get("country_code")
+
+    if city and region:
+        return f"{city}, {region}"
+    if city and country:
+        return f"{city}, {country}"
+    if region and country:
+        return f"{region}, {country}"
+    return city or region or country
+
+
+def _ip_geolocation_urls(ip: str | None) -> list[str]:
+    ip_path = f"{ip}/" if ip else ""
+    return [
+        url.format(ip=ip or "", ip_path=ip_path)
+        for url in IP_GEOLOCATION_URLS
+    ]
+
+
 async def _upsert_artist(url: str, name: str | None) -> dict:
     async with _artists_lock:
         artists = _load_artists()
@@ -87,8 +136,40 @@ async def index() -> FileResponse:
 async def get_config() -> dict:
     # Prefill values only; the Google Maps key never leaves the server.
     return {
-        "artist_url": os.getenv("ARTIST_URL", ""),
+        "artist_url": "",
         "start_location": os.getenv("START_LOC", ""),
+    }
+
+
+@app.get("/api/location-default")
+async def get_location_default(request: Request) -> dict:
+    ip = _public_client_ip(request)
+
+    for url in _ip_geolocation_urls(ip):
+        try:
+            data = await asyncio.wait_for(
+                read_json_async(url),
+                timeout=IP_GEOLOCATION_TIMEOUT_SECONDS,
+            )
+        except Exception:
+            continue
+
+        if data.get("error") or data.get("success") is False:
+            continue
+
+        location = _format_location_guess(data)
+        if location:
+            return {
+                "location": location,
+                "city": data.get("city"),
+                "region": data.get("region_code") or data.get("region"),
+                "country": data.get("country_name") or data.get("country_code") or data.get("country"),
+                "lat": data.get("latitude"),
+                "lng": data.get("longitude"),
+            }
+
+    return {
+        "location": None,
     }
 
 

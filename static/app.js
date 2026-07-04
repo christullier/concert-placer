@@ -525,18 +525,30 @@ function relativeTime(iso) {
 /* ---------- init ---------- */
 
 async function loadDefaults() {
+  let configStartLocation = "";
   try {
     const response = await fetch("/api/config");
-    if (!response.ok) return;
+    if (!response.ok) throw new Error("Config unavailable");
     const config = await response.json();
-    if (config.artist_url && !el("artist-url").value) {
-      el("artist-url").value = config.artist_url;
-    }
-    if (config.start_location && !el("start-location").value) {
-      el("start-location").value = config.start_location;
+    configStartLocation = config.start_location ?? "";
+  } catch {
+    /* non-fatal */
+  }
+
+  try {
+    const response = await fetch("/api/location-default");
+    if (!response.ok) throw new Error("Location unavailable");
+    const location = await response.json();
+    if (location.location && !el("start-location").value) {
+      el("start-location").value = location.location;
+      return;
     }
   } catch {
     /* non-fatal */
+  }
+
+  if (configStartLocation && !el("start-location").value) {
+    el("start-location").value = configStartLocation;
   }
 }
 
