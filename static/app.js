@@ -57,6 +57,9 @@ let map;
 let markerLayer;
 const markersById = new Map();
 let loadingTimer = null;
+let lastBounds = null;
+
+const mobileQuery = window.matchMedia("(max-width: 900px)");
 
 const el = (id) => document.getElementById(id);
 
@@ -291,9 +294,33 @@ function renderMarkers() {
     bounds.push([concert.lat, concert.lng]);
   }
 
-  if (bounds.length) {
-    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
+  lastBounds = bounds.length ? bounds : null;
+  if (lastBounds && !(mobileQuery.matches && document.body.dataset.view !== "map")) {
+    map.fitBounds(lastBounds, { padding: [50, 50], maxZoom: 10 });
   }
+}
+
+/* ---------- mobile list/map toggle ---------- */
+
+function setView(view) {
+  document.body.dataset.view = view;
+  document.querySelectorAll(".view-toggle button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === view);
+  });
+
+  if (view === "map" && map) {
+    // Leaflet must recompute dimensions now that its container is visible,
+    // and re-fit the bounds it couldn't measure while hidden.
+    map.invalidateSize();
+    if (lastBounds) map.fitBounds(lastBounds, { padding: [50, 50], maxZoom: 10 });
+  }
+}
+
+function initViewToggle() {
+  document.querySelectorAll(".view-toggle button").forEach((button) => {
+    button.addEventListener("click", () => setView(button.dataset.view));
+  });
+  document.body.dataset.view = "list";
 }
 
 function popupHtml(concert) {
@@ -310,6 +337,11 @@ function popupHtml(concert) {
 
 function select(id, { pan }) {
   state.selectedId = id;
+
+  // On mobile a card tap (pan) reveals the map so the pin is actually visible.
+  if (pan && mobileQuery.matches && document.body.dataset.view !== "map") {
+    setView("map");
+  }
 
   document.querySelectorAll(".card").forEach((card) => {
     card.classList.toggle("selected", card.dataset.id === id);
@@ -406,6 +438,9 @@ async function search() {
   const startLocation = el("start-location").value.trim();
   if (!artistQuery || !startLocation || state.loading) return;
 
+  // Return to the list so loading progress and results are in view.
+  setView("list");
+
   if (isLikelyUrl(artistQuery)) {
     await lookupConcerts(normalizeArtistUrl(artistQuery), startLocation);
     return;
@@ -488,6 +523,7 @@ async function lookupConcerts(artistUrl, startLocation, { manageLoading = true }
 
     el("candidate-section").hidden = true;
     el("results-section").hidden = false;
+    document.body.classList.add("has-results");
     renderArtistHeader();
     render();
     loadSavedArtists();
@@ -755,6 +791,7 @@ function initFilterControls() {
 initMap();
 initSortControls();
 initFilterControls();
+initViewToggle();
 el("search-form").addEventListener("submit", (event) => {
   event.preventDefault();
   search();
