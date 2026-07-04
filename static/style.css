@@ -119,6 +119,7 @@ body {
   border-radius: 10px;
   color: var(--text);
   font: inherit;
+  font-size: 16px;
   padding: 11px 13px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
