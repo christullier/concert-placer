@@ -76,15 +76,41 @@ async def read_musicbrainz_json_async(url: str) -> dict:
             _last_musicbrainz_request = time.monotonic()
 
 
-def get_artist_id(url: str, *, timeout: int = REQUEST_TIMEOUT_SECONDS) -> str:
-    html = read_url(url, timeout=timeout)
-
-    # find 'artist-id'
+def get_artist_id_from_html(html: str) -> str:
     match = re.search(r'artist-id="([^"]+)"', html)
     if not match:
         raise RuntimeError("Could not find artist-id in the artist page.")
-
     return match.group(1)
+
+
+def get_artist_id(url: str, *, timeout: int = REQUEST_TIMEOUT_SECONDS) -> str:
+    return get_artist_id_from_html(read_url(url, timeout=timeout))
+
+
+def detect_tour_provider(html: str) -> str | None:
+    lowered = html.lower()
+    if re.search(r'artist-id="[^"]+"', html):
+        return "seated"
+    if (
+        "squarespace-events-collection" in lowered or "squarespace-tourdates" in lowered
+    ) and not any(
+        marker in lowered
+        for marker in ("bandsintown", "songkick", "seated.com", "eventbrite", "dice.fm")
+    ):
+        return "squarespace-events"
+    if "bandsintown" in lowered:
+        return "bandsintown"
+    if "widget.songkick.com" in lowered or "songkick-widget" in lowered:
+        return "songkick"
+    if "eventbrite" in lowered:
+        return "eventbrite"
+    if "widgets.dice" in lowered or "dice.fm" in lowered:
+        return "dice"
+    if "ticketmaster.com" in lowered or "livenation.com" in lowered:
+        return "ticketmaster"
+    if "axs.com" in lowered:
+        return "axs"
+    return None
 
 
 async def search_musicbrainz_artists(query: str, limit: int = 8) -> list[dict]:
