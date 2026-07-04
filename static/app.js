@@ -352,7 +352,7 @@ async function resolveArtistAndLookup(artist) {
 
     const resolved = await resolveResponse.json();
     if (!resolved.artist_url) {
-      showResolutionFailure(artist, resolved.tried_urls ?? []);
+      showResolutionFailure(artist, resolved);
       return;
     }
 
@@ -431,10 +431,30 @@ function renderArtistCandidates() {
   }
 }
 
-function showResolutionFailure(artist, triedUrls) {
+function showResolutionFailure(artist, resolved) {
+  const triedUrls = resolved.tried_urls ?? [];
   const urls = triedUrls.map((candidate) => candidate.url).filter(Boolean);
   const tried = urls.length ? `\nTried:\n${urls.join("\n")}` : "\nNo usable MusicBrainz URLs found.";
-  showError(`Found ${artist.name}, but none of the top 3 linked sites had Seated tour data.${tried}`);
+  const unsupported = resolved.unsupported_provider;
+  if (unsupported?.provider) {
+    const provider = formatProviderName(unsupported.provider);
+    showError(`Found ${artist.name}, but the linked tour source uses ${provider}, which is not supported for concert lookup yet.${tried}`);
+    return;
+  }
+  showError(`Found ${artist.name}, but none of the linked sites had supported tour data.${tried}`);
+}
+
+function formatProviderName(provider) {
+  const names = {
+    axs: "AXS",
+    bandsintown: "Bandsintown",
+    dice: "Dice",
+    eventbrite: "Eventbrite",
+    songkick: "Songkick",
+    "squarespace-events": "Squarespace Events",
+    ticketmaster: "Ticketmaster",
+  };
+  return names[provider] ?? provider;
 }
 
 function isLikelyUrl(value) {
