@@ -5,6 +5,7 @@ from pathlib import Path
 from finder import (
     detect_tour_provider,
     get_artist_id_from_html,
+    insert_official_tour_attempt,
     parse_tour_page_html,
     ranked_artist_urls,
 )
@@ -142,6 +143,38 @@ class TourFixtureTests(unittest.TestCase):
                 "https://twitter.com/xboygeniusx",
             ],
         )
+
+    def test_official_tour_attempt_is_inserted_second(self) -> None:
+        candidates = [
+            {"url": "https://www.artist.com/", "type": "official homepage"},
+            {"url": "https://www.bandsintown.com/a/123", "type": "bandsintown"},
+        ]
+
+        probed = insert_official_tour_attempt(candidates)
+
+        self.assertEqual(
+            [candidate["url"] for candidate in probed],
+            [
+                "https://www.artist.com/",
+                "https://www.artist.com/tour",
+                "https://www.bandsintown.com/a/123",
+            ],
+        )
+
+    def test_official_tour_attempt_skipped_without_official_homepage(self) -> None:
+        candidates = [
+            {"url": "https://www.bandsintown.com/a/123", "type": "bandsintown"},
+        ]
+
+        self.assertEqual(insert_official_tour_attempt(candidates), candidates)
+
+    def test_official_tour_attempt_not_duplicated(self) -> None:
+        candidates = [
+            {"url": "https://www.artist.com/", "type": "official homepage"},
+            {"url": "https://www.artist.com/tour", "type": "official homepage"},
+        ]
+
+        self.assertEqual(insert_official_tour_attempt(candidates), candidates)
 
     def test_no_missing_provider_placeholders(self) -> None:
         missing = [entry for entry in self.manifest if entry.get("status") == "not_found"]

@@ -32,8 +32,25 @@ const state = {
   start: null,
   artist: null,
   sortKey: "date",
+  filters: {
+    hideSoldOut: true,
+    hideUnreachable: true,
+    maxDistance: null,
+    dateFrom: null,
+    dateTo: null,
+  },
   selectedId: null,
   loading: false,
+};
+
+// The fully-open state that "Clear filters" resets to (everything visible).
+// The app *starts* feasible-first (state.filters above), but clearing reveals all.
+const OPEN_FILTERS = {
+  hideSoldOut: false,
+  hideUnreachable: false,
+  maxDistance: null,
+  dateFrom: null,
+  dateTo: null,
 };
 
 let map;
@@ -97,11 +114,24 @@ function concertId(concert, index) {
 
 /* ---------- rendering ---------- */
 
+function matchesFilters(concert) {
+  const f = state.filters;
+  if (f.hideSoldOut && concert.is_sold_out) return false;
+  if (f.hideUnreachable && !concert.is_drivable) return false;
+  if (f.maxDistance != null && concert.distance != null && concert.distance > f.maxDistance)
+    return false;
+  if (f.dateFrom && concert.start_date < f.dateFrom) return false;
+  if (f.dateTo && concert.start_date > f.dateTo) return false;
+  return true;
+}
+
 function sortedConcerts() {
-  const concerts = state.concerts.map((concert, index) => ({
-    concert,
-    id: concertId(concert, index),
-  }));
+  const concerts = state.concerts
+    .map((concert, index) => ({
+      concert,
+      id: concertId(concert, index),
+    }))
+    .filter(({ concert }) => matchesFilters(concert));
   if (state.sortKey === "distance") {
     concerts.sort(
       (a, b) => (a.concert.distance ?? Infinity) - (b.concert.distance ?? Infinity)
@@ -177,7 +207,8 @@ function renderCards() {
   const cards = el("cards");
   cards.innerHTML = "";
 
-  for (const { concert, id } of sortedConcerts()) {
+  const visibleConcerts = sortedConcerts();
+  for (const { concert, id } of visibleConcerts) {
     const li = document.createElement("li");
     li.className = "card" + (state.selectedId === id ? " selected" : "");
     li.dataset.id = id;
@@ -213,12 +244,25 @@ function renderCards() {
 
   const summary = el("results-summary");
   const total = state.concerts.length;
-  const drivable = state.concerts.filter(
-    (concert) => concert.is_drivable && !concert.is_sold_out
-  ).length;
-  summary.textContent = total
-    ? `${total} show${total === 1 ? "" : "s"} · ${drivable} drivable`
-    : "No upcoming shows found";
+  const visible = visibleConcerts.length;
+  const clearLink = '<button type="button" class="filter-clear">Clear filters</button>';
+
+  if (!total) {
+    summary.textContent = "No upcoming shows found";
+  } else if (visible === 0) {
+    summary.innerHTML = `No shows match your filters · ${clearLink}`;
+  } else if (visible < total) {
+    summary.innerHTML = `Showing ${visible} of ${total} show${
+      total === 1 ? "" : "s"
+    } · ${clearLink}`;
+  } else {
+    const drivable = state.concerts.filter(
+      (concert) => concert.is_drivable && !concert.is_sold_out
+    ).length;
+    summary.textContent = `${total} show${total === 1 ? "" : "s"} · ${drivable} drivable`;
+  }
+
+  summary.querySelector(".filter-clear")?.addEventListener("click", clearFilters);
 }
 
 function renderMarkers() {
@@ -630,19 +674,87 @@ async function loadDefaults() {
 }
 
 function initSortControls() {
-  document.querySelectorAll(".segmented button").forEach((button) => {
+  document.querySelectorAll(".sort-row .segmented button").forEach((button) => {
     button.addEventListener("click", () => {
       state.sortKey = button.dataset.sort;
       document
-        .querySelectorAll(".segmented button")
+        .querySelectorAll(".sort-row .segmented button")
         .forEach((other) => other.classList.toggle("active", other === button));
       render();
     });
   });
 }
 
+function updateDistanceLabel() {
+  const slider = el("filter-distance");
+  const label = el("filter-distance-label");
+  if (!slider || !label) return;
+  const atMax = Number(slider.value) >= Number(slider.max);
+  label.textContent = atMax ? "Any drive" : `Within ${slider.value} mi`;
+}
+
+function syncFilterControls() {
+  document.querySelectorAll(".filter-toggle").forEach((button) => {
+    const on = state.filters[button.dataset.filter];
+    button.classList.toggle("active", on);
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  const slider = el("filter-distance");
+  if (slider) {
+    slider.value =
+      state.filters.maxDistance == null ? slider.max : String(state.filters.maxDistance);
+    updateDistanceLabel();
+  }
+  el("filter-date-from").value = state.filters.dateFrom ?? "";
+  el("filter-date-to").value = state.filters.dateTo ?? "";
+}
+
+function clearFilters() {
+  state.filters = { ...OPEN_FILTERS };
+  syncFilterControls();
+  render();
+}
+
+function initFilterControls() {
+  document.querySelectorAll(".filter-toggle").forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.dataset.filter;
+      const next = !state.filters[key];
+      state.filters[key] = next;
+      button.classList.toggle("active", next);
+      button.setAttribute("aria-pressed", next ? "true" : "false");
+      render();
+    });
+  });
+
+  const slider = el("filter-distance");
+  slider?.addEventListener("input", () => {
+    const atMax = Number(slider.value) >= Number(slider.max);
+    state.filters.maxDistance = atMax ? null : Number(slider.value);
+    updateDistanceLabel();
+    render();
+  });
+
+  const from = el("filter-date-from");
+  const to = el("filter-date-to");
+  const today = new Date().toISOString().slice(0, 10);
+  if (from) from.min = today;
+  if (to) to.min = today;
+  from?.addEventListener("change", () => {
+    state.filters.dateFrom = from.value || null;
+    render();
+  });
+  to?.addEventListener("change", () => {
+    state.filters.dateTo = to.value || null;
+    render();
+  });
+
+  updateDistanceLabel();
+}
+
 initMap();
 initSortControls();
+initFilterControls();
 el("search-form").addEventListener("submit", (event) => {
   event.preventDefault();
   search();

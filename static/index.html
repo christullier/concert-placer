@@ -69,6 +69,47 @@
             <button type="button" data-sort="distance">Distance</button>
           </div>
         </div>
+        <div class="filter-row">
+          <div class="filter-group filter-toggles">
+            <button
+              type="button"
+              class="filter-toggle active"
+              data-filter="hideSoldOut"
+              aria-pressed="true"
+            >
+              Hide sold out
+            </button>
+            <button
+              type="button"
+              class="filter-toggle active"
+              data-filter="hideUnreachable"
+              aria-pressed="true"
+            >
+              Hide unreachable
+            </button>
+          </div>
+          <div class="filter-group filter-distance-group">
+            <label for="filter-distance" id="filter-distance-label" class="filter-label"
+              >Any drive</label
+            >
+            <input
+              type="range"
+              id="filter-distance"
+              class="filter-slider"
+              min="50"
+              max="1000"
+              step="50"
+              value="1000"
+              aria-label="Maximum drive distance in miles"
+            />
+          </div>
+          <div class="filter-group filter-date-group">
+            <label class="filter-label" for="filter-date-from">From</label>
+            <input type="date" id="filter-date-from" class="filter-date" />
+            <label class="filter-label" for="filter-date-to">To</label>
+            <input type="date" id="filter-date-to" class="filter-date" />
+          </div>
+        </div>
         <ul id="cards" class="cards"></ul>
       </section>
     </aside>

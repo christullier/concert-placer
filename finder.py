@@ -468,6 +468,33 @@ def parse_squarespace_eventlist(provider: str, html: str) -> list[Concert]:
     return dedupe_concerts(concerts)
 
 
+SQUARESPACE_TEXTBLOCK_DATE = re.compile(r"^[A-Z][a-z]{2,8} \d{1,2}, \d{4}$")
+
+
+def parse_squarespace_textblocks(provider: str, html: str) -> list[Concert]:
+    """Parse tour rows hand-authored as Squarespace text blocks.
+
+    Some artists list shows as plain text blocks (venue / city / date), one
+    block per show, instead of using a Squarespace events collection. Each
+    ``.sqs-html-content`` block holds the lines for a single show.
+    """
+    concerts: list[Concert] = []
+    for block in re.findall(r'<div class="sqs-html-content"[^>]*>(.*?)</div>', html, re.S):
+        lines = clean_lines(block)
+        date_index = next(
+            (i for i, line in enumerate(lines) if SQUARESPACE_TEXTBLOCK_DATE.match(line)),
+            None,
+        )
+        if not date_index:
+            continue
+        city = lines[date_index - 1]
+        venue = lines[date_index - 2] if date_index >= 2 else ""
+        concert = normalized_concert(provider, venue, city, parse_month_date(lines[date_index]))
+        if concert:
+            concerts.append(concert)
+    return dedupe_concerts(concerts)
+
+
 def first_class_text(html: str, class_name: str) -> str:
     match = re.search(
         rf'<[^>]+class="[^"]*\b{re.escape(class_name)}\b[^"]*"[^>]*>(.*?)</[^>]+>',
@@ -583,15 +610,23 @@ def parse_axs_html(html: str) -> list[Concert]:
 
 
 def parse_squarespace_events_html(html: str) -> list[Concert]:
-    return parse_squarespace_eventlist("squarespace-events", html) or parse_placeholder(
-        "squarespace-events",
-        html,
-        "snapshot contains Squarespace events configuration but no rendered event rows",
+    return (
+        parse_squarespace_eventlist("squarespace-events", html)
+        or parse_squarespace_textblocks("squarespace-events", html)
+        or parse_placeholder(
+            "squarespace-events",
+            html,
+            "snapshot contains Squarespace events configuration but no rendered event rows",
+        )
     )
 
 
 def parse_eventbrite_html(html: str) -> list[Concert]:
-    return parse_squarespace_eventlist("eventbrite", html) or parse_json_ld_concerts("eventbrite", html)
+    return (
+        parse_squarespace_eventlist("eventbrite", html)
+        or parse_json_ld_concerts("eventbrite", html)
+        or parse_squarespace_textblocks("eventbrite", html)
+    )
 
 
 def parse_dice_html(html: str) -> list[Concert]:
@@ -765,11 +800,52 @@ def tour_provider_from_url(url: str) -> str | None:
     return None
 
 
+def official_tour_url(url: str) -> str | None:
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}/tour"
+
+
+def insert_official_tour_attempt(candidates: list[dict]) -> list[dict]:
+    if not candidates:
+        return candidates
+    first = candidates[0]
+    if (first.get("type") or "").lower() != "official homepage":
+        return candidates
+    tour_url = official_tour_url(first["url"])
+    if not tour_url or any(candidate["url"] == tour_url for candidate in candidates):
+        return candidates
+    fallback = {"url": tour_url, "type": "official homepage tour"}
+    return [first, fallback, *candidates[1:]]
+
+
 def tour_provider_from_candidate(candidate: dict) -> str | None:
     relation_type = (candidate.get("type") or "").lower()
     if relation_type in KNOWN_TOUR_PROVIDERS:
         return relation_type
     return tour_provider_from_url(candidate.get("url") or "")
+
+
+def has_real_tour_events(html: str, provider: str) -> bool:
+    """Whether a page yields actual event rows, not just a provider marker.
+
+    A page can advertise a tour provider (e.g. a Squarespace tour widget or a
+    Bandsintown embed) while exposing no static event rows. Those parse to
+    placeholder concerts flagged with a navigation error; a real row carries a
+    date or a venue-and-city.
+    """
+    parser = TOUR_PROVIDER_PARSERS.get(provider)
+    if not parser:
+        return False
+    try:
+        concerts = parser(html)
+    except Exception:
+        return False
+    return any(
+        not concert.navigation_error and (concert.start_date or (concert.venue and concert.city))
+        for concert in concerts
+    )
 
 
 def probe_tour_provider(url: str, *, timeout: int = ARTIST_PAGE_PROBE_TIMEOUT_SECONDS) -> dict:
@@ -780,15 +856,18 @@ def probe_tour_provider(url: str, *, timeout: int = ARTIST_PAGE_PROBE_TIMEOUT_SE
         result["seated_artist_id"] = get_artist_id_from_html(html)
     elif provider in TOUR_PROVIDER_PARSERS:
         result["parseable"] = True
+        result["has_events"] = has_real_tour_events(html, provider)
     return result
 
 
 async def resolve_seated_artist_url(mbid: str, max_urls: int = 3) -> dict:
     candidates = await get_musicbrainz_artist_urls(mbid)
+    probe_candidates = insert_official_tour_attempt(list(candidates[:max_urls]))
     tried_urls = []
     unsupported_provider = None
+    eventless_fallback = None
 
-    for candidate in candidates[:max_urls]:
+    for candidate in probe_candidates:
         url = candidate["url"]
         tried_candidate = dict(candidate)
         tried_urls.append(tried_candidate)
@@ -813,10 +892,12 @@ async def resolve_seated_artist_url(mbid: str, max_urls: int = 3) -> dict:
         if provider and provider not in SUPPORTED_TOUR_PROVIDERS and not unsupported_provider:
             unsupported_provider = {"provider": provider, "url": url}
             continue
+        if not provider:
+            continue
         artist_id = probe.get("seated_artist_id")
         if provider == "seated" and not artist_id:
             continue
-        return {
+        match = {
             "artist_url": url,
             "source_url": url,
             "seated_artist_id": artist_id,
@@ -824,6 +905,18 @@ async def resolve_seated_artist_url(mbid: str, max_urls: int = 3) -> dict:
             "tried_urls": tried_urls,
             "candidates": candidates[:max_urls],
         }
+        # A homepage can advertise a tour provider yet expose no static event
+        # rows (e.g. a client-rendered widget). Keep looking — the /tour
+        # fallback often has the real dates — and only settle for this page if
+        # nothing better turns up.
+        if provider != "seated" and not probe.get("has_events"):
+            if eventless_fallback is None:
+                eventless_fallback = match
+            continue
+        return match
+
+    if eventless_fallback is not None:
+        return eventless_fallback
 
     return {
         "artist_url": None,
