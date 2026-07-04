@@ -25,10 +25,10 @@ class TourFixtureTests(unittest.TestCase):
 
     def test_manifest_exists_with_multiple_providers(self) -> None:
         providers = {entry["provider"] for entry in self.fixtures}
-        self.assertGreaterEqual(len(self.fixtures), 8)
-        self.assertGreaterEqual(len(providers), 5)
-        self.assertIn("seated", providers)
-        self.assertIn("bandsintown", providers)
+        self.assertGreaterEqual(len(self.fixtures), 11)
+        self.assertGreaterEqual(len(providers), 8)
+        for provider in ("seated", "bandsintown", "songkick", "eventbrite", "dice"):
+            self.assertIn(provider, providers)
 
     def test_each_fixture_file_is_present_and_nonempty(self) -> None:
         for entry in self.fixtures:
@@ -61,13 +61,9 @@ class TourFixtureTests(unittest.TestCase):
                 else:
                     self.assertEqual(detected, entry["provider"])
 
-    def test_missing_providers_documented(self) -> None:
-        missing = {
-            entry["provider"]
-            for entry in self.manifest
-            if entry.get("status") == "not_found"
-        }
-        self.assertEqual(missing, {"songkick", "eventbrite", "dice"})
+    def test_no_missing_provider_placeholders(self) -> None:
+        missing = [entry for entry in self.manifest if entry.get("status") == "not_found"]
+        self.assertEqual(missing, [])
 
 
 if __name__ == "__main__":

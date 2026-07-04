@@ -11,8 +11,11 @@ Offline HTML snapshots of official artist tour/show pages, used to test backend 
 | ticketmaster | 2 | Hardcoded ticket links |
 | axs | 1 | Same Billy Strings page, also has AXS links |
 | squarespace-events | 2 | Native Squarespace events block |
+| songkick | 1 | Songkick Tourbox widget embed |
+| eventbrite | 1 | Hardcoded Eventbrite ticket links |
+| dice | 2 | Hardcoded dice.fm ticket links |
 
-**Not found** (documented in `manifest.json`): Songkick, Eventbrite, Dice — none appeared in 50+ artist site scans.
+Songkick, Eventbrite, and Dice were found via targeted web search after the initial artist-site scan missed them.
 
 ## Refresh fixtures
 
@@ -36,7 +39,7 @@ fixtures/tour-pages/
   ticketmaster/
   axs/
   squarespace-events/
-  songkick/      (empty — not found yet)
-  eventbrite/    (empty — not found yet)
-  dice/          (empty — not found yet)
+  songkick/
+  eventbrite/
+  dice/
 ```

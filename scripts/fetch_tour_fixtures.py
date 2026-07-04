@@ -35,13 +35,13 @@ FIXTURES: list[dict[str, str]] = [
     {"provider": "axs", "artist_name": "Billy Strings", "slug": "billy-strings-tour", "url": "https://www.billystrings.com/tour"},
     {"provider": "squarespace-events", "artist_name": "Maggie Rogers", "slug": "maggie-rogers-join", "url": "https://maggierogers.com/join"},
     {"provider": "squarespace-events", "artist_name": "Death Cab for Cutie", "slug": "death-cab-tour", "url": "https://www.deathcabforcutie.com/tour"},
+    {"provider": "songkick", "artist_name": "Job Alone & Friends", "slug": "job-alone-tourdates", "url": "https://www.jobalone.band/tourdates/"},
+    {"provider": "eventbrite", "artist_name": "Emily Rose", "slug": "emily-rose-tour", "url": "https://www.emilyrosemusic.com/tour"},
+    {"provider": "dice", "artist_name": "Hannah Grae", "slug": "hannah-grae-tour", "url": "https://www.hannahgrae.com/tour"},
+    {"provider": "dice", "artist_name": "Anoushka Lucas", "slug": "anoushka-lucas-tour", "url": "https://www.anoushkalucas.com/tour"},
 ]
 
-SEARCH_NOTES = {
-    "songkick": "No official artist tour page with Songkick widget found after scanning 50+ artist sites.",
-    "eventbrite": "No official artist tour page with Eventbrite embed found after scanning 50+ artist sites.",
-    "dice": "No official artist tour page with Dice widget found after scanning 50+ artist sites.",
-}
+SEARCH_NOTES: dict[str, str] = {}
 
 
 def fetch_url(url: str) -> tuple[int, bytes]:
