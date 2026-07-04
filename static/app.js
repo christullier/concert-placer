@@ -301,11 +301,72 @@ async function readErrorDetail(response) {
 /* ---------- search ---------- */
 
 async function search() {
-  const artistUrl = el("artist-url").value.trim();
+  const artistQuery = el("artist-url").value.trim();
   const startLocation = el("start-location").value.trim();
-  if (!artistUrl || !startLocation || state.loading) return;
+  if (!artistQuery || !startLocation || state.loading) return;
 
-  setLoading(true);
+  if (isLikelyUrl(artistQuery)) {
+    await lookupConcerts(normalizeArtistUrl(artistQuery), startLocation);
+    return;
+  }
+
+  await searchArtistCandidates(artistQuery);
+}
+
+async function searchArtistCandidates(artistQuery) {
+  setLoading(true, ARTIST_SEARCH_LOADING_MESSAGES);
+  el("candidate-section").hidden = true;
+  try {
+    const response = await fetch(`/api/artist-search?q=${encodeURIComponent(artistQuery)}`);
+    if (!response.ok) {
+      showError(await readErrorDetail(response));
+      return;
+    }
+
+    const data = await response.json();
+    state.artistCandidates = data.artists ?? [];
+    renderArtistCandidates();
+  } catch (error) {
+    showError(`Artist search failed: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function resolveArtistAndLookup(artist) {
+  const startLocation = el("start-location").value.trim();
+  if (!startLocation || state.loading) return;
+
+  setLoading(true, ARTIST_RESOLVE_LOADING_MESSAGES);
+  try {
+    const resolveResponse = await fetch("/api/resolve-artist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mbid: artist.mbid }),
+    });
+
+    if (!resolveResponse.ok) {
+      showError(await readErrorDetail(resolveResponse));
+      return;
+    }
+
+    const resolved = await resolveResponse.json();
+    if (!resolved.artist_url) {
+      showResolutionFailure(artist, resolved.tried_urls ?? []);
+      return;
+    }
+
+    el("artist-url").value = resolved.artist_url;
+    await lookupConcerts(resolved.artist_url, startLocation, { manageLoading: false });
+  } catch (error) {
+    showError(`Artist resolution failed: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function lookupConcerts(artistUrl, startLocation, { manageLoading = true } = {}) {
+  if (manageLoading) setLoading(true, TOUR_LOADING_MESSAGES);
   try {
     const response = await fetch("/api/concerts", {
       method: "POST",
@@ -324,6 +385,7 @@ async function search() {
     state.artist = data.artist;
     state.selectedId = null;
 
+    el("candidate-section").hidden = true;
     el("results-section").hidden = false;
     renderArtistHeader();
     render();
@@ -331,8 +393,57 @@ async function search() {
   } catch (error) {
     showError(`Lookup failed: ${error.message}`);
   } finally {
-    setLoading(false);
+    if (manageLoading) setLoading(false);
   }
+}
+
+function renderArtistCandidates() {
+  const section = el("candidate-section");
+  const list = el("candidate-list");
+  list.innerHTML = "";
+
+  if (!state.artistCandidates.length) {
+    showError("No MusicBrainz artist matches found.");
+    return;
+  }
+
+  el("error").hidden = true;
+  el("results-section").hidden = true;
+  section.hidden = false;
+
+  for (const artist of state.artistCandidates) {
+    const li = document.createElement("li");
+    li.className = "candidate-item";
+    const meta = [
+      artist.disambiguation,
+      artist.type,
+      artist.country ?? artist.area,
+      artist.score != null ? `${artist.score}% match` : "",
+    ].filter(Boolean);
+    li.innerHTML = `
+      <button type="button" class="candidate-button">
+        <span class="candidate-name">${escapeHtml(artist.name)}</span>
+        <span class="candidate-meta">${escapeHtml(meta.join(" · "))}</span>
+      </button>
+    `;
+    li.querySelector("button").addEventListener("click", () => resolveArtistAndLookup(artist));
+    list.appendChild(li);
+  }
+}
+
+function showResolutionFailure(artist, triedUrls) {
+  const urls = triedUrls.map((candidate) => candidate.url).filter(Boolean);
+  const tried = urls.length ? `\nTried:\n${urls.join("\n")}` : "\nNo usable MusicBrainz URLs found.";
+  showError(`Found ${artist.name}, but none of the top 3 linked sites had Seated tour data.${tried}`);
+}
+
+function isLikelyUrl(value) {
+  return /^https?:\/\//i.test(value) || /^www\./i.test(value);
+}
+
+function normalizeArtistUrl(value) {
+  if (/^www\./i.test(value)) return `https://${value}`;
+  return value;
 }
 
 function renderArtistHeader() {
