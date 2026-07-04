@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from finder import (
     ConfigError,
+    TourPageParseError,
     geocode_start,
     get_tour,
     read_json_async,
@@ -190,11 +191,13 @@ async def lookup_concerts(request: ConcertRequest) -> dict:
             geocode_start(start_location, api_key),
             get_tour(artist_url, api_key, start_location),
         )
-    except RuntimeError as exc:
+    except TourPageParseError as exc:
         raise HTTPException(
             status_code=422,
-            detail="That page doesn't look like a Seated artist page.",
+            detail=str(exc),
         ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Lookup failed: {exc}") from exc
 

@@ -2,7 +2,12 @@ import json
 import unittest
 from pathlib import Path
 
-from finder import detect_tour_provider, get_artist_id_from_html
+from finder import (
+    detect_tour_provider,
+    get_artist_id_from_html,
+    parse_tour_page_html,
+    ranked_artist_urls,
+)
 
 ROOT = Path(__file__).resolve().parent
 FIXTURES_DIR = ROOT / "fixtures" / "tour-pages"
@@ -60,6 +65,83 @@ class TourFixtureTests(unittest.TestCase):
                     )
                 else:
                     self.assertEqual(detected, entry["provider"])
+
+    def test_each_fixture_parses_to_normalized_concerts(self) -> None:
+        partial_expected = {
+            ("bandsintown", "The War on Drugs"),
+            ("bandsintown", "The Killers"),
+            ("dice", "Hannah Grae"),
+            ("seated", "Big Thief"),
+            ("seated", "Billie Marten"),
+            ("seated", "Bleachers"),
+            ("seated", "Jack Johnson"),
+            ("seated", "Japanese Breakfast"),
+            ("seated", "Lawrence"),
+            ("seated", "Wet Leg"),
+            ("songkick", "Job Alone & Friends"),
+            ("squarespace-events", "Death Cab for Cutie"),
+            ("squarespace-events", "Maggie Rogers"),
+        }
+
+        for entry in self.fixtures:
+            html = (ROOT / entry["filename"]).read_text(encoding="utf-8", errors="replace")
+            parsed = parse_tour_page_html(html, provider=entry.get("detected_provider") or entry["provider"])
+            concerts = parsed["concerts"]
+            expected_partial = (entry["provider"], entry["artist_name"]) in partial_expected
+
+            with self.subTest(provider=entry["provider"], artist=entry["artist_name"]):
+                self.assertEqual(parsed["provider"], entry.get("detected_provider") or entry["provider"])
+                self.assertTrue(parsed["artist_name"])
+                self.assertGreaterEqual(len(concerts), 1)
+                for concert in concerts:
+                    self.assertTrue(concert.venue or concert.city)
+
+                if expected_partial:
+                    self.assertTrue(
+                        any(concert.navigation_error for concert in concerts),
+                        msg="Partial fixtures should explain why full event rows are unavailable.",
+                    )
+                else:
+                    self.assertTrue(
+                        any(concert.venue and concert.city and concert.start_date for concert in concerts),
+                        msg="Full fixtures should include venue, city, and date.",
+                    )
+
+    def test_bare_artist_id_is_not_enough_to_detect_seated(self) -> None:
+        html = '<div class="tour-widget" artist-id="abc123"></div>'
+        self.assertIsNone(detect_tour_provider(html))
+
+    def test_tour_provider_relations_rank_before_social_links(self) -> None:
+        relations = [
+            {
+                "type": "social network",
+                "url": {"resource": "https://twitter.com/xboygeniusx"},
+            },
+            {
+                "type": "bandcamp",
+                "url": {"resource": "https://xboygeniusx.bandcamp.com/"},
+            },
+            {
+                "type": "bandsintown",
+                "url": {"resource": "https://www.bandsintown.com/a/1493395"},
+            },
+            {
+                "type": "official homepage",
+                "url": {"resource": "https://www.xboygeniusx.com/"},
+            },
+        ]
+
+        urls = ranked_artist_urls(relations)
+
+        self.assertEqual(
+            [candidate["url"] for candidate in urls],
+            [
+                "https://www.xboygeniusx.com/",
+                "https://www.bandsintown.com/a/1493395",
+                "https://xboygeniusx.bandcamp.com/",
+                "https://twitter.com/xboygeniusx",
+            ],
+        )
 
     def test_no_missing_provider_placeholders(self) -> None:
         missing = [entry for entry in self.manifest if entry.get("status") == "not_found"]

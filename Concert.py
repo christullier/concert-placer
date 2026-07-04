@@ -30,6 +30,17 @@ class Concert:
             is_sold_out=attributes.get("is-sold-out", False),
         )
 
+    @classmethod
+    def from_normalized_event(cls, provider: str, attributes: dict[str, Any]) -> "Concert":
+        return cls(
+            artist_id=provider,
+            venue=attributes.get("venue", ""),
+            city=attributes.get("city", ""),
+            start_date=attributes.get("start_date", ""),
+            end_date=attributes.get("end_date"),
+            is_sold_out=attributes.get("is_sold_out", False),
+        )
+
     def mark_navigation_error(self, status: str) -> None:
         self.is_drivable = False
         self.navigation_error = status
