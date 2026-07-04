@@ -31,7 +31,7 @@ const state = {
   artistCandidates: [],
   start: null,
   artist: null,
-  sortKey: "date",
+  sortKey: "distance",
   filters: {
     hideSoldOut: true,
     hideUnreachable: true,
