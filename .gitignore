@@ -1,7 +1,9 @@
 cache
-__pycache__/*
+__pycache__/
+.DS_Store
+.idea/
 
 .env
 *.txt
 *.json
-env
+env/

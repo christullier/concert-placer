@@ -1,131 +1,163 @@
-from urllib.request import urlopen
-from dotenv import load_dotenv
-from special_char_replacement import special_char_replacement
+import asyncio
 import json
 import os
+import re
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
-load_dotenv()
-API_KEY = os.getenv('GOOGLE_MAPS_API_KEY')
-COUNTER = 0
-MAX_TRIES = 5
+from dotenv import load_dotenv
 
-class Concert():
-    def __init__(self, artist_id, attribute):
-        self.artist_id = artist_id
-        self.is_sold_out = attribute['is-sold-out']
-        self.start_date = attribute['starts-at-date-local']
-        self.end_date = attribute['ends-at-date-local']
-        self.venue = self.ascii_fix(attribute['venue-name'])
-        self.city = self.ascii_fix(attribute['formatted-address'])
+from Concert import Concert
 
-        self.address = self.get_address()
-        self.distance = self.get_travel_distance()
-
-        self.is_drivable = True
-
-    def get_address(self):
-        # replace spaces with a plus for the url
-        name = self.venue.replace(" ", "+")
-        city = self.city.replace(" ", "+")
-        api = f'https://maps.googleapis.com/maps/api/geocode/json?address={name},{city},+MI&key={API_KEY}'
-
-        page = urlopen(api)
-
-        html_bytes = page.read()
-
-        response_string = html_bytes.decode("utf-8")
-        maps_json = json.loads(response_string)
-        address = maps_json['results'][0]['formatted_address']
-        address = self.ascii_fix(address)
-        # return maps_json['results'][0]['plus_code']['global_code'] # just in case
-        return address
-
-    # checks the address for valid characters so we don't have to get an error later
-    def ascii_fix(self, value: str):
-        if not value.isascii():
-            for i, c in enumerate(value):
-                if not c.isascii():
-                    r = special_char_replacement(c)
-                    value = value.replace(c, r)
-        return value
-
-    def get_travel_distance(self):
-        start = os.getenv('START_LOC')
-        start = start.replace(" ", "+")
-        venue = self.address.replace(" ", "+")
-        api = f'https://maps.googleapis.com/maps/api/directions/json?departure_time=now&destination={venue}&origin={start}&key={API_KEY}'
-
-        page = urlopen(api)
-        html_bytes = page.read()
-        response_string = html_bytes.decode("utf-8")
-        travel_json = json.loads(response_string)
-
-        # is there a path?
-        if travel_json['status'] != "OK":
-            print("\nNAVIGATION ERROR ")
-            print(F"LOCATION: {self.address}")
-            print(travel_json['status'])
-            self.is_drivable = False
-
-        # all is working
-        else:
-            length_meters = travel_json['routes'][0]['legs'][0]['distance']['value']
-            # travel time in hours:
-            # length_seconds = travel_json['routes'][0]['legs'][0]['duration']['value']
-            # return round(int(length_seconds)/3600, 2)
-            return round(int(length_meters)/1609, 2)
-
-    def print_info(self):
-        print()
-        print(self)
-
-        if self.is_sold_out:
-            print("**SOLD OUT**")
-            return
-        elif not self.is_drivable:
-            print("**not driveable")
-            return
-
-        print(self.distance)
-
-    def __str__(self):
-        return f"{self.city}\n{self.start_date}"
+GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+DIRECTIONS_URL = "https://maps.googleapis.com/maps/api/directions/json"
+SEATED_TOUR_URL = "https://cdn.seated.com/api/tour/{artist_id}"
+METERS_PER_MILE = 1609.344
+REQUEST_TIMEOUT_SECONDS = 30
+# Seated's CDN and some artist sites reject the default urllib User-Agent.
+USER_AGENT = "Mozilla/5.0 (compatible; concert-placer/1.0)"
 
 
-def get_artist_id(url):
-    page = urlopen(url)
-    html_bytes = page.read()
-    html = html_bytes.decode("utf-8")
+class ConfigError(RuntimeError):
+    pass
+
+
+def require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise ConfigError(f"Missing required environment variable: {name}")
+    return value
+
+
+def build_url(base_url: str, params: dict[str, str]) -> str:
+    return f"{base_url}?{urlencode(params)}"
+
+
+def read_url(url: str) -> str:
+    request = Request(url, headers={"User-Agent": USER_AGENT})
+    with urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as page:
+        return page.read().decode("utf-8")
+
+
+def read_json(url: str) -> dict:
+    return json.loads(read_url(url))
+
+
+async def read_json_async(url: str) -> dict:
+    return await asyncio.to_thread(read_json, url)
+
+
+def get_artist_id(url: str) -> str:
+    html = read_url(url)
 
     # find 'artist-id'
-    # 11 to account for the name and the open quote
-    start = html.find('artist-id="') + 11
-    # the artist-id is 36 characters long
-    end = start + 36
+    match = re.search(r'artist-id="([^"]+)"', html)
+    if not match:
+        raise RuntimeError("Could not find artist-id in the artist page.")
 
-    artist_id = html[start:end]
-    return artist_id
-
-# have a different workflow in case the artist doesn't use Seated
-# sammy rae and friends use bandsintown https://rest.bandsintown.com/artists/Sammy Rae Music/events?app_id=squarespace-blackbird-frog-4sgd&date=upcoming
-def get_tour_info(artist_id):
-    api = f"https://cdn.seated.com/api/tour/{artist_id}?include=tour-events"
-
-    page = urlopen(api)
-    html_bytes = page.read()
-    response_string = html_bytes.decode("utf-8")
-    tour_json = json.loads(response_string)
-
-    return tour_json
+    return match.group(1)
 
 
-url = os.getenv('ARTIST_URL')
-artist_id = get_artist_id(url)
+async def get_tour_info(artist_id: str) -> dict:
+    url = build_url(SEATED_TOUR_URL.format(artist_id=artist_id), {"include": "tour-events"})
+    return await read_json_async(url)
 
-tour_json = get_tour_info(artist_id)
 
-for i in tour_json['included']:
-    attribute = i['attributes']
-    c1 = Concert(artist_id, attribute)
+async def geocode(query: str, api_key: str) -> dict | None:
+    url = build_url(GEOCODE_URL, {"address": query, "key": api_key})
+    maps_json = await read_json_async(url)
 
-    c1.print_info()
+    if maps_json.get("status") != "OK" or not maps_json.get("results"):
+        return None
+
+    result = maps_json["results"][0]
+    location = result["geometry"]["location"]
+    return {
+        "address": result["formatted_address"],
+        "lat": location["lat"],
+        "lng": location["lng"],
+    }
+
+
+async def geocode_start(start_location: str, api_key: str) -> dict | None:
+    return await geocode(start_location, api_key)
+
+
+async def get_address(concert: Concert, api_key: str) -> str | None:
+    query = f"{concert.venue}, {concert.city}"
+    url = build_url(GEOCODE_URL, {"address": query, "key": api_key})
+    maps_json = await read_json_async(url)
+
+    if maps_json.get("status") != "OK" or not maps_json.get("results"):
+        concert.mark_navigation_error(f"geocode: {maps_json.get('status', 'UNKNOWN_ERROR')}")
+        return None
+
+    result = maps_json["results"][0]
+    location = result["geometry"]["location"]
+    concert.lat = location["lat"]
+    concert.lng = location["lng"]
+    return result["formatted_address"]
+
+
+async def get_travel_distance(concert: Concert, api_key: str, start_location: str) -> float | None:
+    if not concert.address:
+        return None
+
+    url = build_url(
+        DIRECTIONS_URL,
+        {
+            "departure_time": "now",
+            "destination": concert.address,
+            "origin": start_location,
+            "key": api_key,
+        },
+    )
+    travel_json = await read_json_async(url)
+
+    if travel_json.get("status") != "OK":
+        concert.mark_navigation_error(f"directions: {travel_json.get('status', 'UNKNOWN_ERROR')}")
+        return None
+
+    length_meters = travel_json["routes"][0]["legs"][0]["distance"]["value"]
+    return round(int(length_meters) / METERS_PER_MILE, 2)
+
+
+async def enrich_concert(concert: Concert, api_key: str, start_location: str) -> Concert:
+    if concert.is_sold_out:
+        return concert
+
+    try:
+        concert.address = await get_address(concert, api_key)
+        concert.distance = await get_travel_distance(concert, api_key, start_location)
+    except Exception as exc:
+        concert.mark_navigation_error(f"lookup failed: {exc}")
+
+    return concert
+
+
+async def get_concerts(artist_url: str, api_key: str, start_location: str) -> list[Concert]:
+    artist_id = await asyncio.to_thread(get_artist_id, artist_url)
+    tour_json = await get_tour_info(artist_id)
+    concerts = [
+        Concert.from_seated_event(artist_id, item["attributes"])
+        for item in tour_json.get("included", [])
+        if "attributes" in item
+    ]
+
+    await asyncio.gather(*(enrich_concert(concert, api_key, start_location) for concert in concerts))
+    return concerts
+
+
+async def main() -> None:
+    load_dotenv()
+    api_key = require_env("GOOGLE_MAPS_API_KEY")
+    start_location = require_env("START_LOC")
+    artist_url = require_env("ARTIST_URL")
+
+    concerts = await get_concerts(artist_url, api_key, start_location)
+    for concert in concerts:
+        concert.print_info()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
