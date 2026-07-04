@@ -123,21 +123,20 @@ async def get_travel_distance(concert: Concert, api_key: str, start_location: st
 
 
 async def enrich_concert(concert: Concert, api_key: str, start_location: str) -> Concert:
-    if concert.is_sold_out:
-        return concert
-
     try:
         concert.address = await get_address(concert, api_key)
-        concert.distance = await get_travel_distance(concert, api_key, start_location)
+        if not concert.is_sold_out:
+            concert.distance = await get_travel_distance(concert, api_key, start_location)
     except Exception as exc:
         concert.mark_navigation_error(f"lookup failed: {exc}")
 
     return concert
 
 
-async def get_concerts(artist_url: str, api_key: str, start_location: str) -> list[Concert]:
+async def get_tour(artist_url: str, api_key: str, start_location: str) -> dict:
     artist_id = await asyncio.to_thread(get_artist_id, artist_url)
     tour_json = await get_tour_info(artist_id)
+    attributes = tour_json.get("data", {}).get("attributes", {})
     concerts = [
         Concert.from_seated_event(artist_id, item["attributes"])
         for item in tour_json.get("included", [])
@@ -145,7 +144,16 @@ async def get_concerts(artist_url: str, api_key: str, start_location: str) -> li
     ]
 
     await asyncio.gather(*(enrich_concert(concert, api_key, start_location) for concert in concerts))
-    return concerts
+    return {
+        "artist_name": attributes.get("name"),
+        "image_url": attributes.get("image-url"),
+        "concerts": concerts,
+    }
+
+
+async def get_concerts(artist_url: str, api_key: str, start_location: str) -> list[Concert]:
+    tour = await get_tour(artist_url, api_key, start_location)
+    return tour["concerts"]
 
 
 async def main() -> None:

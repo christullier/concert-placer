@@ -18,6 +18,19 @@ Run:
 env/bin/python finder.py
 ```
 
+Run the web app:
+
+```bash
+env/bin/python app.py
+```
+
+By default the web server binds to `0.0.0.0:8000`. Override with `HOST` and
+`PORT` if needed:
+
+```bash
+HOST=0.0.0.0 PORT=8080 env/bin/python app.py
+```
+
 ## TODO
 - [x] scrape data from artist website
 - [x] Concert class
