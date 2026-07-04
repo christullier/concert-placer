@@ -12,7 +12,14 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from finder import ConfigError, geocode_start, get_tour, require_env
+from finder import (
+    ConfigError,
+    geocode_start,
+    get_tour,
+    require_env,
+    resolve_seated_artist_url,
+    search_musicbrainz_artists,
+)
 
 load_dotenv()
 
@@ -28,6 +35,10 @@ _artists_lock = asyncio.Lock()
 class ConcertRequest(BaseModel):
     artist_url: str
     start_location: str
+
+
+class ResolveArtistRequest(BaseModel):
+    mbid: str
 
 
 class SaveArtistRequest(BaseModel):
@@ -113,6 +124,32 @@ async def lookup_concerts(request: ConcertRequest) -> dict:
         "start": start,
         "concerts": [asdict(concert) for concert in tour["concerts"]],
     }
+
+
+@app.get("/api/artist-search")
+async def search_artists(q: str) -> dict:
+    query = q.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Artist name is required.")
+
+    try:
+        artists = await search_musicbrainz_artists(query)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"MusicBrainz search failed: {exc}") from exc
+
+    return {"artists": artists}
+
+
+@app.post("/api/resolve-artist")
+async def resolve_artist(request: ResolveArtistRequest) -> dict:
+    mbid = request.mbid.strip()
+    if not mbid:
+        raise HTTPException(status_code=400, detail="MusicBrainz artist ID is required.")
+
+    try:
+        return await resolve_seated_artist_url(mbid, max_urls=3)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Artist URL resolution failed: {exc}") from exc
 
 
 @app.get("/api/artists")

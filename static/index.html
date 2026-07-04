@@ -29,9 +29,9 @@
 
       <form id="search-form" autocomplete="off">
         <label class="field">
-          <span>Artist page URL</span>
-          <input id="artist-url" name="artist_url" type="url" inputmode="url"
-                 placeholder="https://…" required />
+          <span>Artist name or page URL</span>
+          <input id="artist-url" name="artist_query" type="text"
+                 placeholder="boygenius or https://…" required />
         </label>
         <label class="field">
           <span>Start location</span>
@@ -40,6 +40,11 @@
         </label>
         <button id="submit" class="btn-primary" type="submit">Find concerts</button>
       </form>
+
+      <section id="candidate-section" class="candidates" hidden>
+        <h2 class="section-title">Artist matches</h2>
+        <ul id="candidate-list" class="candidate-list"></ul>
+      </section>
 
       <section id="saved-section" class="saved" hidden>
         <h2 class="section-title">Saved artists</h2>

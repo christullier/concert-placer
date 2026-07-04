@@ -2,6 +2,8 @@ import asyncio
 import json
 import os
 import re
+import time
+from urllib.parse import urlparse
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -12,10 +14,19 @@ from Concert import Concert
 GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 DIRECTIONS_URL = "https://maps.googleapis.com/maps/api/directions/json"
 SEATED_TOUR_URL = "https://cdn.seated.com/api/tour/{artist_id}"
+MUSICBRAINZ_ARTIST_URL = "https://musicbrainz.org/ws/2/artist"
 METERS_PER_MILE = 1609.344
 REQUEST_TIMEOUT_SECONDS = 30
+ARTIST_PAGE_PROBE_TIMEOUT_SECONDS = 8
 # Seated's CDN and some artist sites reject the default urllib User-Agent.
 USER_AGENT = "Mozilla/5.0 (compatible; concert-placer/1.0)"
+MUSICBRAINZ_USER_AGENT = os.getenv(
+    "MUSICBRAINZ_USER_AGENT",
+    "concert-placer/1.0 (https://github.com/christullier/concert-placer)",
+)
+
+_musicbrainz_lock = asyncio.Lock()
+_last_musicbrainz_request = 0.0
 
 
 class ConfigError(RuntimeError):
@@ -33,22 +44,40 @@ def build_url(base_url: str, params: dict[str, str]) -> str:
     return f"{base_url}?{urlencode(params)}"
 
 
-def read_url(url: str) -> str:
-    request = Request(url, headers={"User-Agent": USER_AGENT})
-    with urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as page:
+def read_url(
+    url: str,
+    *,
+    user_agent: str = USER_AGENT,
+    timeout: int = REQUEST_TIMEOUT_SECONDS,
+) -> str:
+    request = Request(url, headers={"User-Agent": user_agent})
+    with urlopen(request, timeout=timeout) as page:
         return page.read().decode("utf-8")
 
 
-def read_json(url: str) -> dict:
-    return json.loads(read_url(url))
+def read_json(url: str, *, user_agent: str = USER_AGENT) -> dict:
+    return json.loads(read_url(url, user_agent=user_agent))
 
 
-async def read_json_async(url: str) -> dict:
-    return await asyncio.to_thread(read_json, url)
+async def read_json_async(url: str, *, user_agent: str = USER_AGENT) -> dict:
+    return await asyncio.to_thread(read_json, url, user_agent=user_agent)
 
 
-def get_artist_id(url: str) -> str:
-    html = read_url(url)
+async def read_musicbrainz_json_async(url: str) -> dict:
+    global _last_musicbrainz_request
+
+    async with _musicbrainz_lock:
+        elapsed = time.monotonic() - _last_musicbrainz_request
+        if elapsed < 1:
+            await asyncio.sleep(1 - elapsed)
+        try:
+            return await read_json_async(url, user_agent=MUSICBRAINZ_USER_AGENT)
+        finally:
+            _last_musicbrainz_request = time.monotonic()
+
+
+def get_artist_id(url: str, *, timeout: int = REQUEST_TIMEOUT_SECONDS) -> str:
+    html = read_url(url, timeout=timeout)
 
     # find 'artist-id'
     match = re.search(r'artist-id="([^"]+)"', html)
@@ -56,6 +85,139 @@ def get_artist_id(url: str) -> str:
         raise RuntimeError("Could not find artist-id in the artist page.")
 
     return match.group(1)
+
+
+async def search_musicbrainz_artists(query: str, limit: int = 8) -> list[dict]:
+    url = build_url(
+        MUSICBRAINZ_ARTIST_URL,
+        {"query": query, "fmt": "json", "limit": str(limit)},
+    )
+    musicbrainz_json = await read_musicbrainz_json_async(url)
+    artists = musicbrainz_json.get("artists", [])
+    return [format_musicbrainz_artist(artist) for artist in artists if artist.get("id")]
+
+
+def format_musicbrainz_artist(artist: dict) -> dict:
+    area = artist.get("area") or {}
+    return {
+        "mbid": artist.get("id"),
+        "name": artist.get("name"),
+        "sort_name": artist.get("sort-name"),
+        "disambiguation": artist.get("disambiguation"),
+        "country": artist.get("country"),
+        "area": area.get("name"),
+        "type": artist.get("type"),
+        "score": artist.get("score"),
+    }
+
+
+async def get_musicbrainz_artist_urls(mbid: str) -> list[dict]:
+    url = build_url(
+        f"{MUSICBRAINZ_ARTIST_URL}/{mbid}",
+        {"inc": "url-rels", "fmt": "json"},
+    )
+    artist_json = await read_musicbrainz_json_async(url)
+    return ranked_artist_urls(artist_json.get("relations", []))
+
+
+def ranked_artist_urls(relations: list[dict]) -> list[dict]:
+    candidates = []
+    seen = set()
+    for relation in relations:
+        url = ((relation.get("url") or {}).get("resource") or "").strip()
+        if not url or url in seen:
+            continue
+        if not is_useful_artist_url(url):
+            continue
+        seen.add(url)
+        candidates.append(
+            {
+                "url": url,
+                "type": relation.get("type"),
+                "score": artist_url_priority(relation, url),
+            }
+        )
+
+    candidates.sort(key=lambda candidate: (candidate["score"], candidate["url"]))
+    for candidate in candidates:
+        candidate.pop("score", None)
+    return candidates
+
+
+def is_useful_artist_url(url: str) -> bool:
+    host = urlparse(url).netloc.lower()
+    if host.startswith("www."):
+        host = host[4:]
+
+    excluded_hosts = (
+        "allmusic.com",
+        "deezer.com",
+        "discogs.com",
+        "genius.com",
+        "imdb.com",
+        "last.fm",
+        "music.apple.com",
+        "musicbrainz.org",
+        "secondhandsongs.com",
+        "setlist.fm",
+        "songkick.com",
+        "spotify.com",
+        "tidal.com",
+        "wikidata.org",
+        "wikipedia.org",
+        "youtube.com",
+        "youtu.be",
+    )
+    return not any(host == blocked or host.endswith(f".{blocked}") for blocked in excluded_hosts)
+
+
+def artist_url_priority(relation: dict, url: str) -> int:
+    relation_type = (relation.get("type") or "").lower()
+    host = urlparse(url).netloc.lower()
+
+    if relation_type == "official homepage":
+        return 0
+    if "official" in relation_type:
+        return 10
+    if "bandcamp" in host:
+        return 30
+    if "soundcloud" in host:
+        return 40
+    if relation_type == "social network":
+        return 50
+    return 80
+
+
+async def resolve_seated_artist_url(mbid: str, max_urls: int = 3) -> dict:
+    candidates = await get_musicbrainz_artist_urls(mbid)
+    tried_urls = []
+
+    for candidate in candidates[:max_urls]:
+        url = candidate["url"]
+        tried_urls.append(candidate)
+        try:
+            artist_id = await asyncio.to_thread(
+                get_artist_id,
+                url,
+                timeout=ARTIST_PAGE_PROBE_TIMEOUT_SECONDS,
+            )
+        except Exception:
+            continue
+        return {
+            "artist_url": url,
+            "source_url": url,
+            "seated_artist_id": artist_id,
+            "tried_urls": tried_urls,
+            "candidates": candidates[:max_urls],
+        }
+
+    return {
+        "artist_url": None,
+        "source_url": None,
+        "seated_artist_id": None,
+        "tried_urls": tried_urls,
+        "candidates": candidates[:max_urls],
+    }
 
 
 async def get_tour_info(artist_id: str) -> dict:

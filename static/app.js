@@ -7,15 +7,28 @@ const COLORS = {
   start: "#8b5cf6",
 };
 
-const LOADING_MESSAGES = [
+const TOUR_LOADING_MESSAGES = [
   "Reading artist page…",
   "Fetching tour dates…",
   "Geocoding venues…",
   "Measuring drives…",
 ];
 
+const ARTIST_SEARCH_LOADING_MESSAGES = [
+  "Searching MusicBrainz…",
+  "Collecting artist matches…",
+];
+
+const ARTIST_RESOLVE_LOADING_MESSAGES = [
+  "Reading MusicBrainz links…",
+  "Trying top artist sites…",
+  "Fetching tour dates…",
+  "Geocoding venues…",
+];
+
 const state = {
   concerts: [],
+  artistCandidates: [],
   start: null,
   artist: null,
   sortKey: "date",
@@ -238,10 +251,12 @@ function escapeHtml(text) {
 
 /* ---------- loading / errors ---------- */
 
-function setLoading(loading) {
+function setLoading(loading, messages = TOUR_LOADING_MESSAGES) {
   state.loading = loading;
   el("submit").disabled = loading;
   const status = el("status");
+  clearInterval(loadingTimer);
+  loadingTimer = null;
 
   if (loading) {
     el("error").hidden = true;
@@ -250,14 +265,14 @@ function setLoading(loading) {
     el("cards").innerHTML = '<li class="card skeleton"></li>'.repeat(4);
 
     let messageIndex = 0;
-    status.textContent = LOADING_MESSAGES[0];
+    status.textContent = messages[0];
     status.hidden = false;
     loadingTimer = setInterval(() => {
-      messageIndex = Math.min(messageIndex + 1, LOADING_MESSAGES.length - 1);
-      status.textContent = LOADING_MESSAGES[messageIndex];
+      messageIndex = Math.min(messageIndex + 1, messages.length - 1);
+      status.textContent = messages[messageIndex];
     }, 2500);
   } else {
-    clearInterval(loadingTimer);
+    status.textContent = "";
     status.hidden = true;
   }
 }
@@ -267,12 +282,14 @@ function showError(message) {
   banner.textContent = message;
   banner.hidden = false;
   el("results-section").hidden = true;
+  el("candidate-section").hidden = true;
 }
 
 async function readErrorDetail(response) {
   try {
     const body = await response.json();
-    if (body.detail) return String(body.detail);
+    if (typeof body.detail === "string") return body.detail;
+    if (body.detail?.message) return body.detail.message;
   } catch {
     /* not JSON */
   }
