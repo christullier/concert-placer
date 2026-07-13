@@ -1162,27 +1162,6 @@ body.search-loading .saved {
   word-break: break-word;
 }
 
-.card.skeleton {
-  height: 94px;
-  pointer-events: none;
-  background: linear-gradient(
-    100deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.75) 48%,
-    transparent 66%
-  );
-  background-size: 220% 100%;
-  animation: shimmer 1.25s infinite;
-}
-
-.card.skeleton::before {
-  color: var(--line);
-}
-
-@keyframes shimmer {
-  to { background-position: -220% 0; }
-}
-
 /* ---------- map ---------- */
 
 .map-shell {

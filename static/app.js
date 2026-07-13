@@ -620,7 +620,7 @@ function setLoading(loading, messages = TOUR_LOADING_MESSAGES) {
     el("error").hidden = true;
     el("results-section").hidden = false;
     el("artist-header").hidden = true;
-    el("cards").innerHTML = '<li class="card skeleton"></li>'.repeat(4);
+    el("cards").innerHTML = "";
 
     let messageIndex = 0;
     status.textContent = messages[0];
