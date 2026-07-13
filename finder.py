@@ -21,6 +21,12 @@ SEATED_TOUR_URL = "https://cdn.seated.com/api/tour/{artist_id}"
 MUSICBRAINZ_ARTIST_URL = "https://musicbrainz.org/ws/2/artist"
 METERS_PER_MILE = 1609.344
 REQUEST_TIMEOUT_SECONDS = 30
+# Hard ceiling on how many concerts a single lookup will geocode + route.
+# Each enriched concert costs up to two Google Maps calls (geocode + directions),
+# so this bounds the Maps spend any one request can trigger — a malicious or
+# pathological tour page with hundreds of rows can't fan out without limit.
+# Rows beyond the cap still render; they're flagged instead of enriched.
+MAX_ENRICHED_CONCERTS = 100
 ARTIST_PAGE_PROBE_TIMEOUT_SECONDS = 8
 # Seated's CDN and some artist sites reject the default urllib User-Agent.
 USER_AGENT = "Mozilla/5.0 (compatible; concert-placer/1.0)"
@@ -1140,7 +1146,12 @@ async def get_tour(artist_url: str, api_key: str, start_location: str) -> dict:
         if link_only["parse_status"] == "link_only":
             return link_only
 
-    await asyncio.gather(*(enrich_concert(concert, api_key, start_location) for concert in concerts))
+    enriched = concerts[:MAX_ENRICHED_CONCERTS]
+    for concert in concerts[MAX_ENRICHED_CONCERTS:]:
+        concert.mark_navigation_error(
+            f"skipped distance lookup: over the {MAX_ENRICHED_CONCERTS}-show per-request limit"
+        )
+    await asyncio.gather(*(enrich_concert(concert, api_key, start_location) for concert in enriched))
     return build_tour_result(
         html=html,
         provider=provider,
