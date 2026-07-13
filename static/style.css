@@ -1206,20 +1206,6 @@ body.search-loading .saved {
   to { background-position: -220% 0; }
 }
 
-.sidebar-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 48px;
-  padding-top: 12px;
-  border-top: 1.5px solid var(--ink);
-  color: var(--ink-soft);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
 /* ---------- map ---------- */
 
 .map-shell {
@@ -1480,8 +1466,7 @@ body.has-results .sidebar {
 
 body.has-results .brand,
 body.has-results .search-panel,
-body.has-results .saved,
-body.has-results .sidebar-footer {
+body.has-results .saved {
   opacity: 0;
   pointer-events: none;
   transform: translateX(-24px);
@@ -1711,8 +1696,7 @@ body.has-results .legend {
 
   body.has-results .brand,
   body.has-results .search-panel,
-  body.has-results .saved,
-  body.has-results .sidebar-footer {
+  body.has-results .saved {
     display: none;
   }
 

@@ -444,7 +444,7 @@ function refreshMapLayout({ fit = true } = {}) {
 }
 
 function setLandingInert(inert) {
-  document.querySelectorAll(".brand, .search-panel, .saved, .sidebar-footer").forEach((node) => {
+  document.querySelectorAll(".brand, .search-panel, .saved").forEach((node) => {
     node.inert = inert;
     node.setAttribute("aria-hidden", inert ? "true" : "false");
   });
