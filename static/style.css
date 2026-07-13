@@ -1206,36 +1206,6 @@ body.search-loading .saved {
   pointer-events: none;
 }
 
-.map-back {
-  position: absolute;
-  top: max(16px, env(safe-area-inset-top));
-  left: 16px;
-  z-index: 950;
-  display: none;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  background: var(--paper-light);
-  border: 1.5px solid var(--ink);
-  box-shadow: 3px 3px 0 var(--ink);
-  color: var(--ink);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.14s, color 0.14s, transform 0.14s;
-}
-
-.map-back:hover {
-  background: var(--ink);
-  color: var(--lime);
-  transform: translateY(-1px);
-}
-
-.map-back:active {
-  transform: translateY(0);
-}
-
 .map-label {
   top: 24px;
   left: 24px;
@@ -1639,10 +1609,6 @@ body.has-results .legend {
     animation-name: none;
   }
 
-  body.has-results .map-back:not([hidden]) {
-    display: grid;
-  }
-
   body.has-results .sidebar {
     position: fixed;
     z-index: 900;
@@ -1691,7 +1657,6 @@ body.has-results .legend {
     position: relative;
     z-index: 3;
     display: grid;
-    grid-template-columns: minmax(118px, 1fr) auto;
     align-items: center;
     gap: 10px;
     min-height: 76px;
@@ -1738,31 +1703,6 @@ body.has-results .legend {
     white-space: nowrap;
   }
 
-  .sheet-positions {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    padding: 3px;
-    background: var(--paper-deep);
-    border: 1px solid var(--ink);
-  }
-
-  .sheet-positions button {
-    min-width: 48px;
-    padding: 7px 8px;
-    background: transparent;
-    border: 0;
-    color: var(--ink-soft);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    cursor: pointer;
-  }
-
-  .sheet-positions button.active {
-    background: var(--blue);
-    color: var(--white);
-  }
 
   body.has-results .results-content {
     padding: 16px 18px calc(30px + env(safe-area-inset-bottom));
@@ -1852,13 +1792,7 @@ body.has-results .legend {
   }
 
   .sheet-controls {
-    grid-template-columns: minmax(76px, 1fr) auto;
     padding-inline: 10px;
-  }
-
-  .sheet-positions button {
-    min-width: 43px;
-    padding-inline: 6px;
   }
 }
 

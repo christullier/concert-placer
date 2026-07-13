@@ -451,11 +451,6 @@ function setLandingInert(inert) {
 }
 
 function updateSheetControls() {
-  document.querySelectorAll("[data-sheet-position]").forEach((button) => {
-    const active = button.dataset.sheetPosition === state.sheetPosition;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", active ? "true" : "false");
-  });
   const handle = el("sheet-handle");
   const labels = {
     map: "Show concert list",
@@ -485,14 +480,12 @@ function enterResultsMode() {
   setLandingInert(true);
   document.body.classList.add("has-results");
   document.body.dataset.view = "map";
-  el("map-back").hidden = false;
   refreshMapLayout();
 }
 
 function exitResultsMode() {
   setLandingInert(false);
   document.body.classList.remove("has-results");
-  el("map-back").hidden = true;
   delete document.body.dataset.sheet;
   document.body.dataset.view = "list";
   el("results-section").hidden = true;
@@ -1214,15 +1207,11 @@ try {
 }
 initSortControls();
 initFilterControls();
-document.querySelectorAll("[data-sheet-position]").forEach((button) => {
-  button.addEventListener("click", () => setSheetPosition(button.dataset.sheetPosition));
-});
 el("sheet-handle").addEventListener("pointerdown", onSheetPointerDown);
 el("sheet-handle").addEventListener("pointermove", onSheetPointerMove);
 el("sheet-handle").addEventListener("pointerup", onSheetPointerUp);
 el("sheet-handle").addEventListener("pointercancel", onSheetPointerUp);
 el("sheet-handle").addEventListener("click", cycleSheetPosition);
-el("map-back").addEventListener("click", exitResultsMode);
 map?.on("click", () => {
   if (
     mobileQuery.matches &&
