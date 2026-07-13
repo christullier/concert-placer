@@ -26,7 +26,7 @@ ARTIST_PAGE_PROBE_TIMEOUT_SECONDS = 8
 USER_AGENT = "Mozilla/5.0 (compatible; concert-placer/1.0)"
 MUSICBRAINZ_USER_AGENT = os.getenv(
     "MUSICBRAINZ_USER_AGENT",
-    "concert-placer/1.0 (https://github.com/christullier/concert-placer)",
+    "concert-placer/1.0",
 )
 
 _musicbrainz_lock = asyncio.Lock()
@@ -316,8 +316,54 @@ def normalized_concert(provider: str, venue: str, city: str, start_date: str, **
             "start_date": start_date,
             "end_date": clean_text(kwargs.get("end_date")),
             "is_sold_out": bool(kwargs.get("is_sold_out")),
+            "ticket_url": kwargs.get("ticket_url"),
         },
     )
+
+
+def offer_url_from_json_ld(event: dict[str, Any]) -> str | None:
+    offers = event.get("offers")
+    if isinstance(offers, dict):
+        offers = [offers]
+    if not isinstance(offers, list):
+        return None
+    for offer in offers:
+        if not isinstance(offer, dict):
+            continue
+        url = clean_text(offer.get("url"))
+        if url:
+            return url
+    return None
+
+
+TICKET_HREF_PATTERN = re.compile(
+    r'href="(https?://[^"]*(?:dice\.fm/event|eventbrite\.com/e/|ticketmaster\.com|axs\.com|livenation\.com)[^"]*)"',
+    re.I,
+)
+
+
+def first_ticket_href(html: str) -> str | None:
+    match = TICKET_HREF_PATTERN.search(html)
+    if match:
+        return match.group(1)
+    gigpress = re.search(
+        r'<a\b[^>]*\bclass="[^"]*\bgigpress-tickets-link\b[^"]*"[^>]*\bhref="([^"]+)"',
+        html,
+        re.I | re.S,
+    ) or re.search(
+        r'<a\b[^>]*\bhref="([^"]+)"[^>]*\bclass="[^"]*\bgigpress-tickets-link\b',
+        html,
+        re.I | re.S,
+    )
+    return gigpress.group(1) if gigpress else None
+
+
+def first_tickets_anchor_href(html: str) -> str | None:
+    for anchor in re.findall(r'<a\b[^>]*href="([^"]+)"[^>]*>(.*?)</a>', html, re.S | re.I):
+        href, text = anchor
+        if re.search(r"\btickets\b", clean_text(text), re.I):
+            return href
+    return None
 
 
 def address_to_city(address: Any) -> str:
@@ -352,6 +398,7 @@ def concert_from_json_ld(provider: str, event: dict[str, Any]) -> Concert | None
         city,
         str(event.get("startDate") or ""),
         end_date=str(event.get("endDate") or ""),
+        ticket_url=offer_url_from_json_ld(event),
     )
 
 
@@ -436,6 +483,7 @@ def parse_billy_strings_rows(provider: str, html: str) -> list[Concert]:
             city,
             parse_month_date(lines[date_index]),
             is_sold_out="sold out" in " ".join(lines).lower(),
+            ticket_url=first_tickets_anchor_href(chunk),
         )
         if concert:
             concerts.append(concert)
@@ -448,7 +496,8 @@ def parse_gigpress_rows(provider: str, html: str) -> list[Concert]:
         date = first_class_text(row, "gigpress-date")
         city = first_class_text(row, "gigpress-city")
         venue = first_class_text(row, "gigpress-venue")
-        concert = normalized_concert(provider, venue, city, parse_month_date(date))
+        ticket_url = first_ticket_href(row)
+        concert = normalized_concert(provider, venue, city, parse_month_date(date), ticket_url=ticket_url)
         if concert:
             concerts.append(concert)
     return dedupe_concerts(concerts)
@@ -489,7 +538,13 @@ def parse_squarespace_textblocks(provider: str, html: str) -> list[Concert]:
             continue
         city = lines[date_index - 1]
         venue = lines[date_index - 2] if date_index >= 2 else ""
-        concert = normalized_concert(provider, venue, city, parse_month_date(lines[date_index]))
+        concert = normalized_concert(
+            provider,
+            venue,
+            city,
+            parse_month_date(lines[date_index]),
+            ticket_url=first_ticket_href(block),
+        )
         if concert:
             concerts.append(concert)
     return dedupe_concerts(concerts)
@@ -515,6 +570,7 @@ def parse_dice_text(provider: str, html: str) -> list[Concert]:
         if "dice.fm/event" not in paragraph and not re.search(r"\b\d{2}\.\d{2}\.\d{4}\b", paragraph):
             continue
         text = clean_text(paragraph)
+        ticket_url = first_ticket_href(paragraph)
         match = re.match(r"(\d{2}\.\d{2}\.\d{4})\s+-\s+(.*?)\s+-\s+(.*?)(?:\s+-\s+Buy Tickets)?$", text)
         if match:
             start_date, event_name, venue = match.groups()
@@ -524,9 +580,10 @@ def parse_dice_text(provider: str, html: str) -> list[Concert]:
                 venue_parts[0],
                 venue_parts[1] if len(venue_parts) > 1 else event_name,
                 parse_month_date(start_date),
+                ticket_url=ticket_url,
             )
         else:
-            concert = normalized_concert(provider, text, "", "")
+            concert = normalized_concert(provider, text, "", "", ticket_url=ticket_url)
         if concert:
             if not (concert.city and concert.start_date):
                 concert.mark_navigation_error("snapshot exposes a DICE ticket link but not complete event metadata")
@@ -562,7 +619,13 @@ def parse_songkick_widget(provider: str, html: str) -> list[Concert]:
 def parse_placeholder(provider: str, html: str, reason: str) -> list[Concert]:
     metadata = parse_artist_metadata(html)
     artist_name = metadata.get("artist_name") or provider
-    concert = normalized_concert(provider, f"{artist_name} tour page", provider, "")
+    concert = normalized_concert(
+        provider,
+        f"{artist_name} tour page",
+        provider,
+        "",
+        ticket_url=first_ticket_href(html),
+    )
     if concert:
         concert.mark_navigation_error(reason)
         return [concert]
@@ -827,6 +890,50 @@ def tour_provider_from_candidate(candidate: dict) -> str | None:
     return tour_provider_from_url(candidate.get("url") or "")
 
 
+def tour_has_parsed_rows(concerts: list[Concert]) -> bool:
+    """Whether parsed concerts include real event rows, not placeholders."""
+    return any(
+        not concert.navigation_error and (concert.start_date or (concert.venue and concert.city))
+        for concert in concerts
+    )
+
+
+def resolve_external_tour_url(html: str, concerts: list[Concert], artist_url: str) -> str:
+    return (
+        first_ticket_href(html)
+        or next((concert.ticket_url for concert in concerts if concert.ticket_url), None)
+        or artist_url
+    )
+
+
+def build_tour_result(
+    *,
+    html: str,
+    provider: str,
+    artist_url: str,
+    concerts: list[Concert],
+    artist_name: str | None,
+    image_url: str | None,
+) -> dict:
+    if provider != "seated" and not tour_has_parsed_rows(concerts):
+        return {
+            "artist_name": artist_name,
+            "image_url": image_url,
+            "concerts": [],
+            "parse_status": "link_only",
+            "external_url": resolve_external_tour_url(html, concerts, artist_url),
+            "provider": provider,
+        }
+    return {
+        "artist_name": artist_name,
+        "image_url": image_url,
+        "concerts": concerts,
+        "parse_status": "full",
+        "external_url": None,
+        "provider": provider,
+    }
+
+
 def has_real_tour_events(html: str, provider: str) -> bool:
     """Whether a page yields actual event rows, not just a provider marker.
 
@@ -842,10 +949,7 @@ def has_real_tour_events(html: str, provider: str) -> bool:
         concerts = parser(html)
     except Exception:
         return False
-    return any(
-        not concert.navigation_error and (concert.start_date or (concert.venue and concert.city))
-        for concert in concerts
-    )
+    return tour_has_parsed_rows(concerts)
 
 
 def probe_tour_provider(url: str, *, timeout: int = ARTIST_PAGE_PROBE_TIMEOUT_SECONDS) -> dict:
@@ -1014,7 +1118,7 @@ async def get_tour(artist_url: str, api_key: str, start_location: str) -> dict:
         tour_json = await get_tour_info(artist_id)
         attributes = tour_json.get("data", {}).get("attributes", {})
         concerts = [
-            Concert.from_seated_event(artist_id, item["attributes"])
+            Concert.from_seated_event(artist_id, item["attributes"], event_id=item.get("id"))
             for item in tour_json.get("included", [])
             if "attributes" in item
         ]
@@ -1025,13 +1129,26 @@ async def get_tour(artist_url: str, api_key: str, start_location: str) -> dict:
         concerts = parsed["concerts"]
         artist_name = parsed["artist_name"]
         image_url = parsed["image_url"]
+        link_only = build_tour_result(
+            html=html,
+            provider=provider,
+            artist_url=artist_url,
+            concerts=concerts,
+            artist_name=artist_name,
+            image_url=image_url,
+        )
+        if link_only["parse_status"] == "link_only":
+            return link_only
 
     await asyncio.gather(*(enrich_concert(concert, api_key, start_location) for concert in concerts))
-    return {
-        "artist_name": artist_name,
-        "image_url": image_url,
-        "concerts": concerts,
-    }
+    return build_tour_result(
+        html=html,
+        provider=provider,
+        artist_url=artist_url,
+        concerts=concerts,
+        artist_name=artist_name,
+        image_url=image_url,
+    )
 
 
 async def get_concerts(artist_url: str, api_key: str, start_location: str) -> list[Concert]:

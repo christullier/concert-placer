@@ -18,9 +18,21 @@ class Concert:
     distance: float | None = None
     is_drivable: bool = True
     navigation_error: str | None = None
+    ticket_url: str | None = None
 
     @classmethod
-    def from_seated_event(cls, artist_id: str, attributes: dict[str, Any]) -> "Concert":
+    def from_seated_event(
+        cls,
+        artist_id: str,
+        attributes: dict[str, Any],
+        *,
+        event_id: str | None = None,
+    ) -> "Concert":
+        ticket_url = (
+            attributes.get("exchange-listing-url")
+            or attributes.get("vip-link-url")
+            or (f"https://go.seated.com/events/{event_id}" if event_id else None)
+        )
         return cls(
             artist_id=artist_id,
             venue=attributes.get("venue-name", ""),
@@ -28,6 +40,7 @@ class Concert:
             start_date=attributes.get("starts-at-date-local", ""),
             end_date=attributes.get("ends-at-date-local"),
             is_sold_out=attributes.get("is-sold-out", False),
+            ticket_url=ticket_url,
         )
 
     @classmethod
@@ -39,6 +52,7 @@ class Concert:
             start_date=attributes.get("start_date", ""),
             end_date=attributes.get("end_date"),
             is_sold_out=attributes.get("is_sold_out", False),
+            ticket_url=attributes.get("ticket_url"),
         )
 
     def mark_navigation_error(self, status: str) -> None:

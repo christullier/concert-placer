@@ -2,7 +2,9 @@ import json
 import unittest
 from pathlib import Path
 
+from Concert import Concert
 from finder import (
+    build_tour_result,
     detect_tour_provider,
     get_artist_id_from_html,
     insert_official_tour_attempt,
@@ -179,6 +181,160 @@ class TourFixtureTests(unittest.TestCase):
     def test_no_missing_provider_placeholders(self) -> None:
         missing = [entry for entry in self.manifest if entry.get("status") == "not_found"]
         self.assertEqual(missing, [])
+
+    def test_ticket_urls_extracted_from_full_fixtures(self) -> None:
+        expectations = {
+            "Gregory Alan Isakov": ("ticketmaster.com", True),
+            "Billy Strings": ("ticketmaster.com", True),
+            "Jacob Collier": ("bandsintown.com", True),
+            "Anoushka Lucas": ("dice.fm/event", True),
+        }
+
+        for entry in self.fixtures:
+            if entry["artist_name"] not in expectations:
+                continue
+            html = (ROOT / entry["filename"]).read_text(encoding="utf-8", errors="replace")
+            parsed = parse_tour_page_html(html, provider=entry.get("detected_provider") or entry["provider"])
+            concerts = parsed["concerts"]
+            fragment, require_all = expectations[entry["artist_name"]]
+
+            with self.subTest(artist=entry["artist_name"]):
+                ticketed = [concert for concert in concerts if concert.ticket_url and fragment in concert.ticket_url]
+                self.assertTrue(ticketed, msg=f"Expected at least one concert with {fragment} ticket_url")
+                if require_all and entry["artist_name"] == "Jacob Collier":
+                    self.assertTrue(
+                        all(concert.ticket_url and "bandsintown.com" in concert.ticket_url for concert in concerts),
+                        msg="Jacob Collier fixture should attach Bandsintown ticket links to every row.",
+                    )
+                if entry["artist_name"] == "Billy Strings":
+                    available = [concert for concert in concerts if not concert.is_sold_out]
+                    self.assertTrue(
+                        all(concert.ticket_url for concert in available),
+                        msg="Non-sold-out Billy Strings rows should include a Tickets link.",
+                    )
+
+    def test_seated_event_builds_go_seated_ticket_url(self) -> None:
+        concert = Concert.from_seated_event(
+            "artist-id",
+            {
+                "venue-name": "Venue",
+                "formatted-address": "City",
+                "starts-at-date-local": "2026-08-01",
+                "ends-at-date-local": None,
+                "is-sold-out": False,
+            },
+            event_id="event-uuid",
+        )
+        self.assertEqual(concert.ticket_url, "https://go.seated.com/events/event-uuid")
+
+    def test_seated_event_prefers_exchange_listing_url(self) -> None:
+        concert = Concert.from_seated_event(
+            "artist-id",
+            {
+                "venue-name": "Venue",
+                "formatted-address": "City",
+                "starts-at-date-local": "2026-08-01",
+                "ends-at-date-local": None,
+                "is-sold-out": False,
+                "exchange-listing-url": "https://example.com/resale",
+            },
+            event_id="event-uuid",
+        )
+        self.assertEqual(concert.ticket_url, "https://example.com/resale")
+
+    def test_link_only_for_partial_fixtures(self) -> None:
+        partial_expected = {
+            ("bandsintown", "The War on Drugs"),
+            ("bandsintown", "The Killers"),
+            ("dice", "Hannah Grae"),
+            ("songkick", "Job Alone & Friends"),
+            ("squarespace-events", "Death Cab for Cutie"),
+            ("squarespace-events", "Maggie Rogers"),
+        }
+
+        for entry in self.fixtures:
+            key = (entry["provider"], entry["artist_name"])
+            if key not in partial_expected:
+                continue
+            html = (ROOT / entry["filename"]).read_text(encoding="utf-8", errors="replace")
+            provider = entry.get("detected_provider") or entry["provider"]
+            parsed = parse_tour_page_html(html, provider=provider)
+            result = build_tour_result(
+                html=html,
+                provider=provider,
+                artist_url=f"https://example.com/{provider}",
+                concerts=parsed["concerts"],
+                artist_name=parsed["artist_name"],
+                image_url=parsed["image_url"],
+            )
+
+            with self.subTest(provider=entry["provider"], artist=entry["artist_name"]):
+                self.assertEqual(result["parse_status"], "link_only")
+                self.assertTrue(result["external_url"])
+                self.assertEqual(result["concerts"], [])
+
+    def test_seated_partial_fixture_stays_full_parse_status(self) -> None:
+        seated_partials = {
+            ("seated", "Big Thief"),
+            ("seated", "Wet Leg"),
+        }
+        for entry in self.fixtures:
+            key = (entry["provider"], entry["artist_name"])
+            if key not in seated_partials:
+                continue
+            html = (ROOT / entry["filename"]).read_text(encoding="utf-8", errors="replace")
+            parsed = parse_tour_page_html(html, provider="seated")
+            result = build_tour_result(
+                html=html,
+                provider="seated",
+                artist_url="https://example.com/seated",
+                concerts=parsed["concerts"],
+                artist_name=parsed["artist_name"],
+                image_url=parsed["image_url"],
+            )
+            with self.subTest(artist=entry["artist_name"]):
+                self.assertEqual(result["parse_status"], "full")
+                self.assertGreaterEqual(len(result["concerts"]), 1)
+
+    def test_full_parse_still_returns_concerts(self) -> None:
+        full_expected = ("Gregory Alan Isakov", "Billy Strings", "Jacob Collier")
+
+        for entry in self.fixtures:
+            if entry["artist_name"] not in full_expected:
+                continue
+            html = (ROOT / entry["filename"]).read_text(encoding="utf-8", errors="replace")
+            provider = entry.get("detected_provider") or entry["provider"]
+            parsed = parse_tour_page_html(html, provider=provider)
+            result = build_tour_result(
+                html=html,
+                provider=provider,
+                artist_url=f"https://example.com/{provider}",
+                concerts=parsed["concerts"],
+                artist_name=parsed["artist_name"],
+                image_url=parsed["image_url"],
+            )
+
+            with self.subTest(artist=entry["artist_name"]):
+                self.assertEqual(result["parse_status"], "full")
+                self.assertGreater(len(result["concerts"]), 0)
+
+    def test_placeholder_attaches_ticket_href(self) -> None:
+        entry = next(
+            entry for entry in self.fixtures if entry["artist_name"] == "Hannah Grae" and entry["provider"] == "dice"
+        )
+        html = (ROOT / entry["filename"]).read_text(encoding="utf-8", errors="replace")
+        parsed = parse_tour_page_html(html, provider="dice")
+        result = build_tour_result(
+            html=html,
+            provider="dice",
+            artist_url="https://example.com/dice",
+            concerts=parsed["concerts"],
+            artist_name=parsed["artist_name"],
+            image_url=parsed["image_url"],
+        )
+
+        self.assertEqual(result["parse_status"], "link_only")
+        self.assertIn("dice.fm/event", result["external_url"])
 
 
 if __name__ == "__main__":
