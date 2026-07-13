@@ -805,9 +805,6 @@ body.search-loading .status.search-status {
   text-transform: uppercase;
 }
 
-/* The summary line and the share action are the same sentence: what you found,
-   and the way to pass it on. Sharing is secondary, so it sits at the summary's
-   weight rather than competing with the artist name. */
 .results-summary-row {
   display: flex;
   align-items: baseline;
@@ -821,37 +818,6 @@ body.search-loading .status.search-status {
   color: var(--ink-soft);
   font-size: 11px;
   font-weight: 600;
-}
-
-.share-button {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  padding: 0;
-  background: none;
-  border: 0;
-  color: var(--ink-soft);
-  font-size: 11px;
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-
-.share-button::before {
-  content: "·";
-  margin-right: 5px;
-  text-decoration: none;
-}
-
-.share-button:hover:not(:disabled),
-.share-button:focus-visible:not(:disabled) {
-  color: var(--blue);
-}
-
-.share-button:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .results-controls {
@@ -1372,6 +1338,74 @@ body.search-loading .status.search-status {
 
 body.has-results .map-back:not([hidden]) {
   display: grid;
+}
+
+/* Sharing lives at the top-right of the map, mirroring the back button, so the
+   whole result is one tap away from a copyable link. Icon-only — the label
+   would only crowd the map. */
+.map-share {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: 16px;
+  z-index: 950;
+  display: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: var(--paper-light);
+  border: 1.5px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+  color: var(--ink);
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s, transform 0.14s;
+}
+
+.map-share:hover {
+  background: var(--ink);
+  color: var(--lime);
+  transform: translateY(-1px);
+}
+
+.map-share:active {
+  transform: translateY(0);
+}
+
+.map-share .map-share-check {
+  display: none;
+}
+
+.map-share.is-copied {
+  background: var(--ink);
+  color: var(--lime);
+}
+
+.map-share.is-copied .map-share-icon {
+  display: none;
+}
+
+.map-share.is-copied .map-share-check {
+  display: inline-flex;
+}
+
+.map-share svg {
+  display: block;
+}
+
+body.has-results .map-share:not([hidden]) {
+  display: grid;
+}
+
+/* Keep Leaflet's zoom control clear of the share button — it stacks just
+   below in the same top-right column, aligned to the same right edge. */
+.leaflet-top.leaflet-right {
+  top: max(16px, env(safe-area-inset-top));
+  margin-top: 52px;
+}
+
+.leaflet-top.leaflet-right .leaflet-control {
+  margin-right: 16px;
 }
 
 .map-pin {

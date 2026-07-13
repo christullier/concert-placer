@@ -1207,14 +1207,15 @@ function displayConcertResults(data, { shared = false } = {}) {
 }
 
 function renderShareControl() {
-  const button = el("share-search");
+  const button = el("map-share");
   if (!button) return;
   // Nothing to share on an empty result — don't offer to share it.
   const shareable = Boolean(state.sharePath) && state.concerts.length > 0;
   button.hidden = !shareable;
   button.disabled = !shareable;
+  button.classList.remove("is-copied");
+  window.clearTimeout(shareLabelTimer);
   button.title = state.shareError ?? "Copy a self-contained link to these results";
-  el("share-label").textContent = "Copy link";
 }
 
 function copyTextFallback(text) {
@@ -1251,10 +1252,14 @@ async function copyShareLink() {
     return;
   }
 
+  const button = el("map-share");
+  if (!button) return;
   window.clearTimeout(shareLabelTimer);
-  el("share-label").textContent = "Copied";
+  button.classList.add("is-copied");
+  button.setAttribute("aria-label", "Link copied");
   shareLabelTimer = window.setTimeout(() => {
-    el("share-label").textContent = "Copy link";
+    button.classList.remove("is-copied");
+    button.setAttribute("aria-label", "Copy link to these results");
   }, 1800);
 }
 
@@ -1722,7 +1727,7 @@ el("sheet-handle").addEventListener("pointerup", onSheetPointerUp);
 el("sheet-handle").addEventListener("pointercancel", onSheetPointerUp);
 el("sheet-handle").addEventListener("click", cycleSheetPosition);
 el("map-back").addEventListener("click", exitResultsMode);
-el("share-search").addEventListener("click", copyShareLink);
+el("map-share").addEventListener("click", copyShareLink);
 map?.on("click", () => {
   if (
     mobileQuery.matches &&
