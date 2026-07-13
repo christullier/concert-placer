@@ -123,12 +123,14 @@
             <div class="artist-copy">
               <span id="results-location" class="eyebrow">Upcoming route</span>
               <h2 id="artist-name" class="artist-name"></h2>
-              <p id="results-summary" class="results-summary" aria-live="polite"></p>
+              <div class="results-summary-row">
+                <p id="results-summary" class="results-summary" aria-live="polite"></p>
+                <button id="share-search" class="share-button" type="button" hidden>
+                  <span id="share-label">Copy link</span>
+                  <span aria-hidden="true">↗</span>
+                </button>
+              </div>
             </div>
-            <button id="share-search" class="share-button" type="button" hidden>
-              <span id="share-label">Copy link</span>
-              <span aria-hidden="true">↗</span>
-            </button>
           </div>
 
           <div class="results-controls">
@@ -236,15 +238,7 @@
       <button id="map-back" class="map-back" type="button" aria-label="Back to search" hidden>
         <span aria-hidden="true">&#8592;</span>
       </button>
-      <div class="map-label" aria-hidden="true">
-        <span>Live route map</span>
-        <span>Drag to explore</span>
-      </div>
       <main id="map" aria-label="Concert map"></main>
-      <div class="map-caption" aria-hidden="true">
-        <span>Every pin is a possibility.</span>
-        <span class="map-caption-arrow">↗</span>
-      </div>
     </section>
 
   </div>
