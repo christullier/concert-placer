@@ -191,27 +191,39 @@ function daysUntilDate(iso) {
   return Math.round((dateUtc - todayUtc) / 86400000);
 }
 
+function formatDateShort(iso) {
+  if (!iso) return "Date TBA";
+  const date = parseDateOnly(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const options = { weekday: "short", month: "short", day: "numeric" };
+  if (date.getFullYear() !== new Date().getFullYear()) options.year = "numeric";
+  return date.toLocaleDateString(undefined, options);
+}
+
 function formatDaysUntil(iso) {
   const days = daysUntilDate(iso);
-  if (days == null) return "Date TBA";
-  if (days === 1) return "1 day";
-  return `${days} days`;
+  if (days == null || days < 0) return "";
+  if (days === 0) return "today";
+  if (days === 1) return "tomorrow";
+  return `in ${days} days`;
 }
 
 function cardDateHtml(iso) {
-  const actualDate = formatDate(iso);
   const daysUntil = formatDaysUntil(iso);
   return `
-    <button
-      type="button"
-      class="card-date"
-      aria-label="${escapeHtml(actualDate)}"
-      aria-expanded="false"
-    >
-      <span class="card-date-text">${escapeHtml(daysUntil)}</span>
-      <span class="date-popover" role="tooltip">${escapeHtml(actualDate)}</span>
-    </button>
+    <div class="card-date">
+      <span class="card-date-text">${escapeHtml(formatDateShort(iso))}</span>
+      ${daysUntil ? `<span class="card-date-days">${escapeHtml(daysUntil)}</span>` : ""}
+    </div>
   `;
+}
+
+// Trim a trailing parenthetical that just repeats part of the venue name,
+// e.g. "The Vogel at Count Basie Center for the Arts (The Vogel)".
+function displayVenue(name) {
+  const match = /^(.*\S)\s*\(([^)]+)\)$/.exec(name ?? "");
+  if (match && match[1].toLowerCase().includes(match[2].toLowerCase())) return match[1];
+  return name;
 }
 
 function statusChip(concert) {
@@ -243,14 +255,12 @@ function renderExternalTourLink() {
   const block = el("external-tour-link");
   const copy = el("external-tour-copy");
   const cta = el("external-tour-cta");
-  const sortRow = document.querySelector(".sort-row");
-  const filterRow = document.querySelector(".filter-row");
+  const controls = document.querySelector(".results-controls");
   const cards = el("cards");
 
   if (!isLinkOnlyResults()) {
     block.hidden = true;
-    if (sortRow) sortRow.hidden = false;
-    if (filterRow) filterRow.hidden = false;
+    if (controls) controls.hidden = false;
     return;
   }
 
@@ -259,8 +269,7 @@ function renderExternalTourLink() {
   cta.textContent = `View shows on ${providerName}`;
   cta.href = state.externalUrl ?? "#";
   block.hidden = false;
-  if (sortRow) sortRow.hidden = true;
-  if (filterRow) filterRow.hidden = true;
+  if (controls) controls.hidden = true;
   cards.innerHTML = "";
 
   const summary = el("results-summary");
@@ -293,7 +302,7 @@ function renderCards() {
 
     li.innerHTML = `
       <div class="card-top">
-        <span class="card-venue">${escapeHtml(concert.venue)}</span>
+        <span class="card-venue">${escapeHtml(displayVenue(concert.venue))}</span>
         ${distance}
       </div>
       <div class="card-city">${escapeHtml(concert.city)}</div>
@@ -306,10 +315,6 @@ function renderCards() {
       </div>
       ${error}
     `;
-    li.querySelector(".card-date")?.addEventListener("click", (event) => {
-      event.stopPropagation();
-      toggleDatePopover(event.currentTarget);
-    });
     li.querySelector(".card-tickets")?.addEventListener("click", (event) => {
       event.stopPropagation();
     });
@@ -328,8 +333,9 @@ function renderCards() {
   el("sheet-peek-label").textContent = `${visible} show${visible === 1 ? "" : "s"}`;
   const clearLink = '<button type="button" class="filter-clear">Clear filters</button>';
 
-  const filterRow = document.querySelector(".filter-row");
-  if (filterRow) filterRow.hidden = total === 0;
+  const controls = document.querySelector(".results-controls");
+  if (controls) controls.hidden = total === 0;
+  updateFilterBadge();
 
   if (!total) {
     summary.textContent = "No upcoming shows found";
@@ -343,7 +349,7 @@ function renderCards() {
     const drivable = state.concerts.filter(
       (concert) => concert.is_drivable && !concert.is_sold_out
     ).length;
-    summary.textContent = `${total} show${total === 1 ? "" : "s"} · ${drivable} drivable`;
+    summary.textContent = `${drivable} of ${total} drivable`;
   }
 
   summary.querySelector(".filter-clear")?.addEventListener("click", clearFilters);
@@ -461,7 +467,7 @@ function updateSheetControls() {
   handle.setAttribute("aria-expanded", state.sheetPosition === "list" ? "true" : "false");
 }
 
-function setSheetPosition(position, { fit = true } = {}) {
+function setSheetPosition(position, { fit = false } = {}) {
   if (!Object.hasOwn(sheetDetentHeights(), position)) return;
   state.sheetPosition = position;
   document.body.dataset.sheet = position;
@@ -547,7 +553,7 @@ function cycleSheetPosition() {
 
 function popupHtml(concert) {
   const lines = [
-    `<strong>${escapeHtml(concert.venue)}</strong>`,
+    `<strong>${escapeHtml(displayVenue(concert.venue))}</strong>`,
     escapeHtml(concert.city),
     formatDate(concert.start_date),
   ];
@@ -582,21 +588,6 @@ function select(id, { pan, fromMarker = false }) {
     if (pan) map.panTo(marker.getLatLng());
     marker.openPopup();
   }
-}
-
-function closeDatePopovers(except = null) {
-  document.querySelectorAll(".card-date.open").forEach((button) => {
-    if (button === except) return;
-    button.classList.remove("open");
-    button.setAttribute("aria-expanded", "false");
-  });
-}
-
-function toggleDatePopover(button) {
-  const willOpen = !button.classList.contains("open");
-  closeDatePopovers(button);
-  button.classList.toggle("open", willOpen);
-  button.setAttribute("aria-expanded", String(willOpen));
 }
 
 function escapeHtml(text) {
@@ -1094,12 +1085,31 @@ function initSortControls() {
   });
 }
 
-function updateDistanceLabel() {
+function updateDistanceValue() {
   const slider = el("filter-distance");
-  const label = el("filter-distance-label");
-  if (!slider || !label) return;
+  const value = el("filter-distance-value");
+  if (!slider || !value) return;
   const atMax = Number(slider.value) >= Number(slider.max);
-  label.textContent = atMax ? "Any drive" : `Within ${slider.value} mi`;
+  value.textContent = atMax ? "Any" : `${slider.value} mi`;
+}
+
+function activeFilterCount() {
+  const f = state.filters;
+  return [f.hideSoldOut, f.hideUnreachable, f.maxDistance != null, f.dateFrom, f.dateTo].filter(
+    Boolean
+  ).length;
+}
+
+function updateFilterBadge() {
+  const badge = el("filter-count");
+  if (!badge) return;
+  const count = activeFilterCount();
+  badge.textContent = String(count);
+  badge.hidden = count === 0;
+}
+
+function syncDateShell(input) {
+  input?.closest(".date-shell")?.classList.toggle("has-value", Boolean(input.value));
 }
 
 function syncFilterControls() {
@@ -1112,10 +1122,13 @@ function syncFilterControls() {
   if (slider) {
     slider.value =
       state.filters.maxDistance == null ? slider.max : String(state.filters.maxDistance);
-    updateDistanceLabel();
+    updateDistanceValue();
   }
   el("filter-date-from").value = state.filters.dateFrom ?? "";
   el("filter-date-to").value = state.filters.dateTo ?? "";
+  syncDateShell(el("filter-date-from"));
+  syncDateShell(el("filter-date-to"));
+  updateFilterBadge();
 }
 
 function clearFilters() {
@@ -1124,7 +1137,20 @@ function clearFilters() {
   render();
 }
 
+function setFilterPanelOpen(open) {
+  const panel = el("filter-panel");
+  const disclosure = el("filter-disclosure");
+  if (!panel || !disclosure) return;
+  panel.hidden = !open;
+  disclosure.setAttribute("aria-expanded", open ? "true" : "false");
+  disclosure.classList.toggle("open", open);
+}
+
 function initFilterControls() {
+  el("filter-disclosure")?.addEventListener("click", () => {
+    setFilterPanelOpen(el("filter-panel").hidden);
+  });
+
   document.querySelectorAll(".filter-toggle").forEach((button) => {
     button.addEventListener("click", () => {
       const key = button.dataset.filter;
@@ -1140,7 +1166,7 @@ function initFilterControls() {
   slider?.addEventListener("input", () => {
     const atMax = Number(slider.value) >= Number(slider.max);
     state.filters.maxDistance = atMax ? null : Number(slider.value);
-    updateDistanceLabel();
+    updateDistanceValue();
     render();
   });
 
@@ -1151,14 +1177,17 @@ function initFilterControls() {
   if (to) to.min = today;
   from?.addEventListener("change", () => {
     state.filters.dateFrom = from.value || null;
+    syncDateShell(from);
     render();
   });
   to?.addEventListener("change", () => {
     state.filters.dateTo = to.value || null;
+    syncDateShell(to);
     render();
   });
 
-  updateDistanceLabel();
+  updateDistanceValue();
+  updateFilterBadge();
 }
 
 try {
@@ -1237,11 +1266,7 @@ el("start-location").addEventListener("input", () => syncLocationControl());
 el("start-location").addEventListener("change", () => syncLocationControl({ collapse: true }));
 el("start-location").addEventListener("blur", () => syncLocationControl({ collapse: true }));
 document.addEventListener("click", (event) => {
-  closeDatePopovers();
   if (!event.target.closest(".artist-field")) hideArtistCandidates();
-});
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeDatePopovers();
 });
 applyInitialArtistQuery();
 loadDefaults();

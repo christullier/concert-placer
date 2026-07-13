@@ -627,7 +627,7 @@ body.search-loading .saved {
 
 .artist-header {
   display: grid;
-  grid-template-columns: 74px minmax(0, 1fr) auto;
+  grid-template-columns: auto 74px minmax(0, 1fr);
   align-items: center;
   gap: 16px;
 }
@@ -731,6 +731,59 @@ body.search-loading .saved {
   gap: 20px;
 }
 
+.sort-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filter-disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.13s, color 0.13s;
+}
+
+.filter-disclosure:hover {
+  background: var(--paper-light);
+}
+
+.filter-disclosure.open {
+  background: var(--ink);
+  color: var(--lime);
+}
+
+.filter-count {
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  background: var(--blue);
+  color: var(--white);
+  font-size: 9px;
+}
+
+.disclosure-caret {
+  font-size: 11px;
+  line-height: 1;
+  transition: transform 0.13s;
+}
+
+.filter-disclosure.open .disclosure-caret {
+  transform: rotate(180deg);
+}
+
 .segmented {
   display: inline-grid;
   grid-template-columns: 1fr 1fr;
@@ -759,24 +812,30 @@ body.search-loading .saved {
   color: var(--lime);
 }
 
-.filter-row {
+.filter-panel {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 12px;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.filter-group {
-  display: flex;
+.filter-line {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
   align-items: center;
-  gap: 7px;
+  gap: 10px;
 }
 
-.filter-toggles {
-  width: 100%;
+.filter-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-height: 30px;
   padding: 5px 10px;
   background: transparent;
@@ -790,6 +849,16 @@ body.search-loading .saved {
   transition: background 0.13s, color 0.13s, transform 0.13s;
 }
 
+.filter-toggle::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border: 1px solid currentColor;
+  background: transparent;
+  transition: background 0.13s;
+}
+
 .filter-toggle:hover {
   transform: translateY(-1px);
 }
@@ -797,6 +866,10 @@ body.search-loading .saved {
 .filter-toggle.active {
   background: var(--lime);
   color: var(--ink);
+}
+
+.filter-toggle.active::before {
+  background: var(--ink);
 }
 
 .filter-label {
@@ -809,22 +882,65 @@ body.search-loading .saved {
 }
 
 .filter-slider {
-  width: 112px;
+  flex: 1;
+  max-width: 190px;
   height: 4px;
   accent-color: var(--blue);
   cursor: pointer;
 }
 
-.filter-date {
+.filter-value {
+  min-width: 44px;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.date-shell {
+  position: relative;
+  display: inline-flex;
+  flex: 1;
   min-width: 0;
-  max-width: 118px;
-  padding: 5px 6px;
+  max-width: 132px;
+}
+
+.filter-date {
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 5px 7px;
   background: var(--paper-light);
   border: 1px solid var(--line-strong);
   border-radius: 0;
   color: var(--ink);
   font-size: 10px;
   font-weight: 600;
+}
+
+/* iOS Safari renders empty date inputs as a blank box; overlay our own
+   placeholder until the input has a value (or is being edited). */
+.date-shell::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  inset: 1px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  background: var(--paper-light);
+  color: #96978f;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.date-shell:not(.has-value):not(:focus-within)::before {
+  opacity: 1;
 }
 
 .date-separator {
@@ -945,12 +1061,16 @@ body.search-loading .saved {
 
 .card-top {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
 }
 
 .card-venue {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   font-family: var(--font-display);
   font-size: 15px;
   line-height: 1.05;
@@ -960,9 +1080,11 @@ body.search-loading .saved {
 
 .badge-distance {
   flex-shrink: 0;
+  margin-top: 1px;
   padding: 2px 5px;
-  background: var(--blue);
-  color: var(--white);
+  background: transparent;
+  border: 1px solid var(--blue);
+  color: var(--blue);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -1012,66 +1134,28 @@ body.search-loading .saved {
 }
 
 .card-date {
-  position: relative;
-  padding: 0;
-  background: transparent;
-  border: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
   color: var(--ink);
-  cursor: pointer;
 }
 
 .card-date-text {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  border-bottom: 1px dashed var(--ink-soft);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.card-date:hover .card-date-text,
-.card-date.open .card-date-text {
-  color: var(--blue);
-  border-bottom-color: var(--blue);
-}
-
-.date-popover {
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 9px);
-  z-index: 50;
-  width: max-content;
-  max-width: 200px;
-  padding: 7px 9px;
-  background: var(--ink);
-  border: 1px solid var(--ink);
-  color: var(--white);
+.card-date-days {
+  overflow: hidden;
+  color: var(--ink-soft);
   font-size: 10px;
   font-weight: 600;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  box-shadow: 3px 3px 0 var(--coral);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(4px) rotate(-1deg);
-  transition: opacity 0.12s, transform 0.12s;
-}
-
-.date-popover::after {
-  content: "";
-  position: absolute;
-  left: 12px;
-  top: 100%;
-  border: 6px solid transparent;
-  border-top-color: var(--ink);
-}
-
-.card-date:hover .date-popover,
-.card-date:focus-visible .date-popover,
-.card-date.open .date-popover {
-  opacity: 1;
-  transform: translateY(0) rotate(-1deg);
 }
 
 .chip {
@@ -1380,10 +1464,7 @@ body.has-results .results {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background:
-    linear-gradient(rgba(21, 21, 21, 0.035) 1px, transparent 1px),
-    var(--paper);
-  background-size: 100% 28px;
+  background: var(--paper);
   border: 1.5px solid var(--ink);
   box-shadow: 8px 8px 0 rgba(21, 21, 21, 0.92), var(--shadow-soft);
   pointer-events: auto;
@@ -1405,7 +1486,7 @@ body.has-results .artist-image-wrap {
 }
 
 body.has-results .artist-header {
-  grid-template-columns: 64px minmax(0, 1fr) 34px;
+  grid-template-columns: 34px 64px minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -1555,22 +1636,15 @@ body.has-results .legend {
     font-size: clamp(28px, 9vw, 42px);
   }
 
-  .filter-row {
-    gap: 13px;
-  }
-
-  .filter-distance-group,
-  .filter-date-group {
-    width: 100%;
-  }
-
   .filter-slider {
-    flex: 1;
+    max-width: none;
+  }
+
+  .date-shell {
+    max-width: none;
   }
 
   .filter-date {
-    flex: 1;
-    max-width: none;
     min-height: 34px;
   }
 
@@ -1728,7 +1802,7 @@ body.has-results .legend {
   }
 
   body.has-results .artist-header {
-    grid-template-columns: 58px minmax(0, 1fr) auto;
+    grid-template-columns: auto 58px minmax(0, 1fr);
     gap: 11px;
   }
 
@@ -1771,7 +1845,7 @@ body.has-results .legend {
   }
 
   body:not(.has-results) .artist-header {
-    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-columns: auto 64px minmax(0, 1fr);
   }
 
   .artist-image-wrap {
@@ -1781,7 +1855,8 @@ body.has-results .legend {
 
   .filter-date-group {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
   }
 
   .date-separator {

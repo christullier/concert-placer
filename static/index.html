@@ -126,6 +126,10 @@
 
         <div class="results-content">
           <div id="artist-header" class="artist-header" hidden>
+            <button id="new-search" class="new-search" type="button">
+              <span aria-hidden="true">&#8592;</span>
+              <span>New search</span>
+            </button>
             <div class="artist-image-wrap">
               <img id="artist-avatar" class="artist-avatar" alt="" hidden />
               <span class="artist-image-fallback" aria-hidden="true">LIVE</span>
@@ -135,60 +139,90 @@
               <h2 id="artist-name" class="artist-name"></h2>
               <p id="results-summary" class="results-summary" aria-live="polite"></p>
             </div>
-            <button id="new-search" class="new-search" type="button">
-              <span aria-hidden="true">&#8592;</span>
-              <span>New search</span>
-            </button>
           </div>
 
           <div class="results-controls">
             <div class="sort-row">
-              <span class="section-title">Order</span>
-              <div class="segmented" role="group" aria-label="Sort results">
-                <button type="button" data-sort="distance" class="active">Closest</button>
-                <button type="button" data-sort="date">Soonest</button>
+              <div class="sort-group">
+                <span class="filter-label" id="sort-label">Order</span>
+                <div class="segmented" role="group" aria-labelledby="sort-label">
+                  <button type="button" data-sort="distance" class="active">Closest</button>
+                  <button type="button" data-sort="date">Soonest</button>
+                </div>
               </div>
+              <button
+                type="button"
+                id="filter-disclosure"
+                class="filter-disclosure"
+                aria-expanded="false"
+                aria-controls="filter-panel"
+              >
+                <span>Filters</span>
+                <span id="filter-count" class="filter-count" hidden>0</span>
+                <span class="disclosure-caret" aria-hidden="true">&#9662;</span>
+              </button>
             </div>
-            <div class="filter-row">
-              <div class="filter-group filter-toggles" aria-label="Show filters">
-                <button
-                  type="button"
-                  class="filter-toggle active"
-                  data-filter="hideSoldOut"
-                  aria-pressed="true"
-                >
-                  Available only
-                </button>
-                <button
-                  type="button"
-                  class="filter-toggle active"
-                  data-filter="hideUnreachable"
-                  aria-pressed="true"
-                >
-                  Drivable only
-                </button>
+            <div id="filter-panel" class="filter-panel" hidden>
+              <div class="filter-line" role="group" aria-label="Show filters">
+                <span class="filter-label">Show</span>
+                <div class="filter-control filter-toggles">
+                  <button
+                    type="button"
+                    class="filter-toggle active"
+                    data-filter="hideSoldOut"
+                    aria-pressed="true"
+                  >
+                    Available only
+                  </button>
+                  <button
+                    type="button"
+                    class="filter-toggle active"
+                    data-filter="hideUnreachable"
+                    aria-pressed="true"
+                  >
+                    Drivable only
+                  </button>
+                </div>
               </div>
-              <div class="filter-group filter-distance-group">
-                <label for="filter-distance" id="filter-distance-label" class="filter-label"
-                  >Any drive</label
-                >
-                <input
-                  type="range"
-                  id="filter-distance"
-                  class="filter-slider"
-                  min="50"
-                  max="1000"
-                  step="50"
-                  value="1000"
-                  aria-label="Maximum drive distance in miles"
-                />
+              <div class="filter-line">
+                <label for="filter-distance" class="filter-label">Max drive</label>
+                <div class="filter-control">
+                  <input
+                    type="range"
+                    id="filter-distance"
+                    class="filter-slider"
+                    min="50"
+                    max="1000"
+                    step="50"
+                    value="1000"
+                    aria-label="Maximum drive distance in miles"
+                  />
+                  <output id="filter-distance-value" class="filter-value" for="filter-distance"
+                    >Any</output
+                  >
+                </div>
               </div>
-              <div class="filter-group filter-date-group">
-                <label class="filter-label" for="filter-date-from">From</label>
-                <input type="date" id="filter-date-from" class="filter-date" />
-                <span class="date-separator" aria-hidden="true">→</span>
-                <label class="filter-label" for="filter-date-to">To</label>
-                <input type="date" id="filter-date-to" class="filter-date" />
+              <div class="filter-line">
+                <span class="filter-label" id="filter-dates-label">Dates</span>
+                <div class="filter-control filter-date-group">
+                  <span class="date-shell" data-placeholder="Any start">
+                    <input
+                      type="date"
+                      id="filter-date-from"
+                      class="filter-date"
+                      aria-label="Earliest show date"
+                    />
+                  </span>
+                  <span class="date-separator" aria-hidden="true">→</span>
+                  <span class="date-shell" data-placeholder="Any end">
+                    <input
+                      type="date"
+                      id="filter-date-to"
+                      class="filter-date"
+                      aria-label="Latest show date"
+                    />
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -226,7 +260,7 @@
 
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9coqIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
   <script src="/static/app.js"></script>
