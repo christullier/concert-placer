@@ -16,6 +16,7 @@ class Concert:
     lat: float | None = None
     lng: float | None = None
     distance: float | None = None
+    distance_is_estimated: bool = False
     is_drivable: bool = True
     navigation_error: str | None = None
     ticket_url: str | None = None
@@ -53,6 +54,8 @@ class Concert:
             end_date=attributes.get("end_date"),
             is_sold_out=attributes.get("is_sold_out", False),
             ticket_url=attributes.get("ticket_url"),
+            lat=attributes.get("lat"),
+            lng=attributes.get("lng"),
         )
 
     def mark_navigation_error(self, status: str) -> None:
