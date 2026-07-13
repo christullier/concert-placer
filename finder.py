@@ -1130,13 +1130,16 @@ def build_tour_result(
     concerts: list[Concert],
     artist_name: str | None,
     image_url: str | None,
+    no_upcoming_shows: bool = False,
 ) -> dict:
     if provider != "seated" and not tour_has_parsed_rows(concerts):
+        # "no_shows" means the provider's event feed answered and had nothing to
+        # list; "link_only" means we couldn't read the dates it may well have.
         return {
             "artist_name": artist_name,
             "image_url": image_url,
             "concerts": [],
-            "parse_status": "link_only",
+            "parse_status": "no_shows" if no_upcoming_shows else "link_only",
             "external_url": resolve_external_tour_url(html, concerts, artist_url),
             "provider": provider,
         }
@@ -1379,7 +1382,27 @@ async def enrich_concert(concert: Concert, api_key: str, start_location: str) ->
     return concert
 
 
-async def get_tour(artist_url: str, api_key: str, start_location: str) -> dict:
+async def get_tour(
+    artist_url: str,
+    api_key: str,
+    start_location: str,
+    preferred_artist_name: str | None = None,
+) -> dict:
+    """Fetch and parse a tour page.
+
+    `preferred_artist_name` is the name the caller already knows (the one the
+    user picked in search). Parsers fall back to the provider's own name when a
+    feed carries no events, which renders as a page titled "Bandsintown"; the
+    caller's name is always the better label when we have it.
+    """
+    result = await _get_tour(artist_url, api_key, start_location)
+    preferred = clean_text(preferred_artist_name or "")
+    if preferred:
+        result["artist_name"] = preferred
+    return result
+
+
+async def _get_tour(artist_url: str, api_key: str, start_location: str) -> dict:
     provider = tour_provider_from_url(artist_url)
     # Direct Songkick and Bandsintown pages reject non-browser HTML requests,
     # but the artist id in their URLs is all their public widgets need.
@@ -1434,6 +1457,7 @@ async def get_tour(artist_url: str, api_key: str, start_location: str) -> dict:
                 concerts=[],
                 artist_name=artist_name,
                 image_url=image_url,
+                no_upcoming_shows=True,
             )
     elif provider == "songkick":
         artist_id = get_songkick_artist_id(html=html, source_url=artist_url)
@@ -1477,6 +1501,7 @@ async def get_tour(artist_url: str, api_key: str, start_location: str) -> dict:
                     concerts=[],
                     artist_name=artist_name,
                     image_url=image_url,
+                    no_upcoming_shows=True,
                 )
     else:
         parsed = parse_tour_page_html(html, provider=provider, source_url=artist_url)
