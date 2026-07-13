@@ -43,8 +43,8 @@
         </div>
 
         <form id="search-form" autocomplete="off">
-          <label class="field">
-            <span class="field-label">Who do you want to see?</span>
+          <div class="field artist-field">
+            <label class="field-label" for="artist-url">Who do you want to see?</label>
             <span class="input-shell input-artist">
               <input
                 id="artist-url"
@@ -52,36 +52,50 @@
                 type="text"
                 placeholder="Japanese Breakfast"
                 aria-describedby="artist-hint"
+                aria-autocomplete="list"
+                aria-controls="candidate-list"
+                aria-expanded="false"
                 required
               />
             </span>
-            <span id="artist-hint" class="field-hint">Artist name or tour page URL</span>
-          </label>
-          <label class="field">
-            <span class="field-label">Where are you leaving from?</span>
-            <span class="input-shell input-location">
-              <input
-                id="start-location"
-                name="start_location"
-                type="text"
-                placeholder="Washington, DC"
-                required
-              />
-            </span>
-          </label>
+            <section id="candidate-section" class="candidate-popover" aria-label="Artist matches" hidden>
+              <ul id="candidate-list" class="candidate-list" role="listbox"></ul>
+            </section>
+            <span id="artist-hint" class="field-hint">Start typing an artist. You can also paste a tour page URL.</span>
+          </div>
+          <div class="location-control">
+            <button
+              id="location-toggle"
+              class="location-summary"
+              type="button"
+              aria-expanded="true"
+              aria-controls="location-editor"
+              hidden
+            >
+              <span class="location-summary-label">From</span>
+              <strong id="location-summary-text">Set your starting point</strong>
+              <span class="location-change">Change</span>
+            </button>
+            <label id="location-editor" class="field location-editor">
+              <span class="field-label">Where are you leaving from?</span>
+              <span class="input-shell input-location">
+                <input
+                  id="start-location"
+                  name="start_location"
+                  type="text"
+                  placeholder="Washington, DC"
+                  required
+                />
+              </span>
+            </label>
+          </div>
           <button id="submit" class="btn-primary" type="submit">
-            <span>Plot the tour</span>
+            <span id="submit-label">Find artist</span>
             <span class="button-arrow" aria-hidden="true">↗</span>
           </button>
+          <div id="status" class="status search-status" role="status" aria-live="polite" hidden></div>
+          <div id="error" class="error-banner search-error" role="alert" hidden></div>
         </form>
-      </section>
-
-      <section id="candidate-section" class="candidates utility-section" hidden>
-        <div class="utility-heading">
-          <h2 class="section-title">Choose an artist</h2>
-          <span class="eyebrow">MusicBrainz matches</span>
-        </div>
-        <ul id="candidate-list" class="candidate-list"></ul>
       </section>
 
       <section id="saved-section" class="saved utility-section" hidden>
@@ -91,9 +105,6 @@
         </div>
         <ul id="saved-list" class="saved-list"></ul>
       </section>
-
-      <div id="error" class="error-banner" role="alert" hidden></div>
-      <div id="status" class="status" role="status" aria-live="polite" hidden></div>
 
       <section id="results-section" class="results" aria-labelledby="artist-name" hidden>
         <div id="artist-header" class="artist-header" hidden>

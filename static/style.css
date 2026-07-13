@@ -286,6 +286,76 @@ input:focus-visible {
   letter-spacing: 0.04em;
 }
 
+.candidate-popover {
+  margin-top: -1px;
+  background: var(--white);
+  border: 1.5px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.artist-field.is-searching .input-shell::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 17px;
+  right: 15px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+.location-control {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.location-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.location-summary-label,
+.location-change {
+  color: var(--ink-soft);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.location-summary strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location-change {
+  color: var(--blue);
+}
+
+.location-summary[aria-expanded="true"] {
+  background: var(--lime);
+}
+
+.location-editor[hidden] {
+  display: none;
+}
+
 .btn-primary {
   display: inline-flex;
   align-items: center;
@@ -335,6 +405,15 @@ input:focus-visible {
   box-shadow: none;
 }
 
+.status.search-status,
+.error-banner.search-error {
+  margin-top: -4px;
+}
+
+body.search-loading .saved {
+  display: none;
+}
+
 /* ---------- utility sections ---------- */
 
 .utility-section {
@@ -374,13 +453,12 @@ input:focus-visible {
 .candidate-list {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--line);
 }
 
 .candidate-button {
   position: relative;
   width: 100%;
-  padding: 13px 36px 13px 0;
+  padding: 11px 38px 11px 13px;
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--line);
@@ -401,8 +479,15 @@ input:focus-visible {
 }
 
 .candidate-button:hover {
-  padding-left: 8px;
+  padding-left: 18px;
   color: var(--blue);
+}
+
+.candidate-button.active,
+.candidate-button:focus-visible {
+  background: var(--lime);
+  color: var(--ink);
+  outline: 0;
 }
 
 .candidate-name {

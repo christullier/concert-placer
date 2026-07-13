@@ -44,6 +44,8 @@ const state = {
   },
   selectedId: null,
   loading: false,
+  selectedCandidate: null,
+  selectedArtistUrl: null,
 };
 
 // The fully-open state that "Clear filters" resets to (everything visible).
@@ -61,6 +63,11 @@ let markerLayer;
 const markersById = new Map();
 let loadingTimer = null;
 let lastBounds = null;
+let artistSearchTimer = null;
+let artistSearchVersion = 0;
+let activeCandidateIndex = -1;
+const artistSearchCache = new Map();
+const artistResolutionCache = new Map();
 
 const mobileQuery = window.matchMedia("(max-width: 900px)");
 
@@ -475,6 +482,7 @@ function escapeHtml(text) {
 function setLoading(loading, messages = TOUR_LOADING_MESSAGES) {
   state.loading = loading;
   el("submit").disabled = loading;
+  document.body.classList.toggle("search-loading", loading);
   const status = el("status");
   clearInterval(loadingTimer);
   loadingTimer = null;
@@ -488,13 +496,16 @@ function setLoading(loading, messages = TOUR_LOADING_MESSAGES) {
     let messageIndex = 0;
     status.textContent = messages[0];
     status.hidden = false;
+    setSubmitLabel(messages[0]);
     loadingTimer = setInterval(() => {
       messageIndex = Math.min(messageIndex + 1, messages.length - 1);
       status.textContent = messages[messageIndex];
+      setSubmitLabel(messages[messageIndex]);
     }, 2500);
   } else {
     status.textContent = "";
     status.hidden = true;
+    updateSubmitLabel();
   }
 }
 
@@ -503,7 +514,7 @@ function showError(message) {
   banner.textContent = message;
   banner.hidden = false;
   el("results-section").hidden = true;
-  el("candidate-section").hidden = true;
+  hideArtistCandidates();
   document.body.classList.remove("has-results");
 }
 
@@ -525,7 +536,15 @@ async function readErrorDetail(response) {
 async function search() {
   const artistQuery = el("artist-url").value.trim();
   const startLocation = el("start-location").value.trim();
-  if (!artistQuery || !startLocation || state.loading) return;
+  if (!artistQuery || state.loading) return;
+
+  if (!startLocation) {
+    setLocationEditor(true);
+    el("start-location").focus();
+    showError("Add a starting location so we can compare the drive.");
+    return;
+  }
+  syncLocationControl({ collapse: true });
 
   // Return to the list so loading progress and results are in view.
   setView("list");
@@ -535,27 +554,69 @@ async function search() {
     return;
   }
 
-  await searchArtistCandidates(artistQuery);
+  if (state.selectedCandidate && state.selectedCandidate.name === artistQuery) {
+    await resolveArtistAndLookup(state.selectedCandidate);
+    return;
+  }
+
+  if (state.artistCandidates.length) {
+    await chooseArtistCandidate(0);
+    return;
+  }
+
+  await searchArtistCandidates(artistQuery, { showEmptyError: true });
 }
 
-async function searchArtistCandidates(artistQuery) {
-  setLoading(true, ARTIST_SEARCH_LOADING_MESSAGES);
-  el("candidate-section").hidden = true;
+async function searchArtistCandidates(artistQuery, { showEmptyError = false } = {}) {
+  const query = artistQuery.trim();
+  if (query.length < 2 || isLikelyUrl(query)) {
+    hideArtistCandidates();
+    return [];
+  }
+
+  const requestVersion = ++artistSearchVersion;
+  setArtistSearchPending(true);
   try {
-    const response = await fetch(`/api/artist-search?q=${encodeURIComponent(artistQuery)}`);
-    if (!response.ok) {
-      showError(await readErrorDetail(response));
-      return;
+    let artists = artistSearchCache.get(query.toLowerCase());
+    if (!artists) {
+      const response = await fetch(`/api/artist-search?q=${encodeURIComponent(query)}`);
+      if (!response.ok) throw new Error(await readErrorDetail(response));
+      const data = await response.json();
+      artists = (data.artists ?? []).slice(0, 5);
+      artistSearchCache.set(query.toLowerCase(), artists);
     }
 
-    const data = await response.json();
-    state.artistCandidates = data.artists ?? [];
+    if (requestVersion !== artistSearchVersion || el("artist-url").value.trim() !== query) return [];
+    state.artistCandidates = artists;
     renderArtistCandidates();
+    if (artists[0]) prefetchArtistResolution(artists[0]);
+    if (!artists.length && showEmptyError) showError("No MusicBrainz artist matches found.");
+    return artists;
   } catch (error) {
-    showError(`Artist search failed: ${error.message}`);
+    if (requestVersion === artistSearchVersion) showError(`Artist search failed: ${error.message}`);
+    return [];
   } finally {
-    setLoading(false);
+    if (requestVersion === artistSearchVersion) setArtistSearchPending(false);
   }
+}
+
+function prefetchArtistResolution(artist) {
+  if (!artist?.mbid || artistResolutionCache.has(artist.mbid)) return;
+  const promise = fetch("/api/resolve-artist", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mbid: artist.mbid }),
+  }).then(async (response) => {
+    if (!response.ok) throw new Error(await readErrorDetail(response));
+    return response.json();
+  });
+  artistResolutionCache.set(artist.mbid, promise);
+  promise.catch(() => artistResolutionCache.delete(artist.mbid));
+}
+
+async function resolveArtist(artist) {
+  prefetchArtistResolution(artist);
+  return artistResolutionCache.get(artist.mbid);
 }
 
 async function resolveArtistAndLookup(artist) {
@@ -564,24 +625,13 @@ async function resolveArtistAndLookup(artist) {
 
   setLoading(true, ARTIST_RESOLVE_LOADING_MESSAGES);
   try {
-    const resolveResponse = await fetch("/api/resolve-artist", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mbid: artist.mbid }),
-    });
-
-    if (!resolveResponse.ok) {
-      showError(await readErrorDetail(resolveResponse));
-      return;
-    }
-
-    const resolved = await resolveResponse.json();
+    const resolved = await resolveArtist(artist);
     if (!resolved.artist_url) {
       showResolutionFailure(artist, resolved);
       return;
     }
 
-    el("artist-url").value = resolved.artist_url;
+    state.selectedArtistUrl = resolved.artist_url;
     await lookupConcerts(resolved.artist_url, startLocation, { manageLoading: false });
   } catch (error) {
     showError(`Artist resolution failed: ${error.message}`);
@@ -632,18 +682,20 @@ function renderArtistCandidates() {
   list.innerHTML = "";
 
   if (!state.artistCandidates.length) {
-    showError("No MusicBrainz artist matches found.");
+    hideArtistCandidates();
     return;
   }
 
   el("error").hidden = true;
-  el("results-section").hidden = true;
-  document.body.classList.remove("has-results");
   section.hidden = false;
+  el("artist-url").setAttribute("aria-expanded", "true");
+  activeCandidateIndex = -1;
 
-  for (const artist of state.artistCandidates) {
+  state.artistCandidates.forEach((artist, index) => {
     const li = document.createElement("li");
     li.className = "candidate-item";
+    li.setAttribute("role", "option");
+    li.id = `artist-candidate-${index}`;
     const meta = [
       artist.disambiguation,
       artist.type,
@@ -656,8 +708,62 @@ function renderArtistCandidates() {
         <span class="candidate-meta">${escapeHtml(meta.join(" · "))}</span>
       </button>
     `;
-    li.querySelector("button").addEventListener("click", () => resolveArtistAndLookup(artist));
+    li.querySelector("button").addEventListener("click", () => chooseArtistCandidate(index));
     list.appendChild(li);
+  });
+}
+
+async function chooseArtistCandidate(index) {
+  const artist = state.artistCandidates[index];
+  if (!artist) return;
+  state.selectedCandidate = artist;
+  el("artist-url").value = artist.name;
+  hideArtistCandidates();
+  updateSubmitLabel();
+
+  if (!el("start-location").value.trim()) {
+    setLocationEditor(true);
+    el("start-location").focus();
+    return;
+  }
+
+  await resolveArtistAndLookup(artist);
+}
+
+function hideArtistCandidates() {
+  el("candidate-section").hidden = true;
+  el("artist-url").setAttribute("aria-expanded", "false");
+  el("artist-url").removeAttribute("aria-activedescendant");
+  activeCandidateIndex = -1;
+}
+
+function setActiveCandidate(index) {
+  const buttons = [...el("candidate-list").querySelectorAll(".candidate-button")];
+  if (!buttons.length) return;
+  activeCandidateIndex = (index + buttons.length) % buttons.length;
+  buttons.forEach((button, buttonIndex) => button.classList.toggle("active", buttonIndex === activeCandidateIndex));
+  el("artist-url").setAttribute("aria-activedescendant", `artist-candidate-${activeCandidateIndex}`);
+}
+
+function setArtistSearchPending(pending) {
+  document.querySelector(".artist-field").classList.toggle("is-searching", pending);
+  if (pending) {
+    el("artist-hint").textContent = ARTIST_SEARCH_LOADING_MESSAGES[0];
+  } else {
+    el("artist-hint").textContent = "Start typing an artist. You can also paste a tour page URL.";
+  }
+}
+
+function setSubmitLabel(label) {
+  el("submit-label").textContent = label;
+}
+
+function updateSubmitLabel() {
+  const query = el("artist-url").value.trim();
+  if (state.selectedCandidate?.name === query || isLikelyUrl(query)) {
+    setSubmitLabel("Plot the tour");
+  } else {
+    setSubmitLabel("Find artist");
   }
 }
 
@@ -739,7 +845,7 @@ function renderSavedArtists(artists) {
   section.hidden = artists.length === 0;
   list.innerHTML = "";
 
-  for (const artist of artists) {
+  for (const artist of artists.slice(0, 6)) {
     const li = document.createElement("li");
     li.className = "saved-chip";
     li.title = artist.url;
@@ -750,14 +856,12 @@ function renderSavedArtists(artists) {
       <button class="chip-delete" type="button" aria-label="Remove ${escapeHtml(artist.name)}">✕</button>
     `;
     li.addEventListener("click", () => {
-      el("artist-url").value = artist.url;
-      search();
+      selectSavedArtist(artist);
     });
     li.addEventListener("keydown", (event) => {
       if (event.target !== li || (event.key !== "Enter" && event.key !== " ")) return;
       event.preventDefault();
-      el("artist-url").value = artist.url;
-      search();
+      selectSavedArtist(artist);
     });
     li.querySelector(".chip-delete").addEventListener("click", async (event) => {
       event.stopPropagation();
@@ -766,6 +870,21 @@ function renderSavedArtists(artists) {
     });
     list.appendChild(li);
   }
+}
+
+function selectSavedArtist(artist) {
+  state.selectedCandidate = null;
+  state.selectedArtistUrl = artist.url;
+  el("artist-url").value = artist.name;
+  hideArtistCandidates();
+  updateSubmitLabel();
+  const startLocation = el("start-location").value.trim();
+  if (!startLocation) {
+    setLocationEditor(true);
+    el("start-location").focus();
+    return;
+  }
+  lookupConcerts(artist.url, startLocation);
 }
 
 function relativeTime(iso) {
@@ -798,6 +917,7 @@ async function loadDefaults() {
     const location = await response.json();
     if (location.location && !el("start-location").value) {
       el("start-location").value = location.location;
+      syncLocationControl({ collapse: true });
       return;
     }
   } catch {
@@ -806,7 +926,20 @@ async function loadDefaults() {
 
   if (configStartLocation && !el("start-location").value) {
     el("start-location").value = configStartLocation;
+    syncLocationControl({ collapse: true });
   }
+}
+
+function syncLocationControl({ collapse = false } = {}) {
+  const location = el("start-location").value.trim();
+  el("location-summary-text").textContent = location || "Set your starting point";
+  if (collapse && location) setLocationEditor(false);
+}
+
+function setLocationEditor(open) {
+  el("location-editor").hidden = !open;
+  el("location-toggle").hidden = open;
+  el("location-toggle").setAttribute("aria-expanded", open ? "true" : "false");
 }
 
 function applyInitialArtistQuery() {
@@ -910,7 +1043,46 @@ el("search-form").addEventListener("submit", (event) => {
   event.preventDefault();
   search();
 });
-document.addEventListener("click", () => closeDatePopovers());
+el("artist-url").addEventListener("input", () => {
+  clearTimeout(artistSearchTimer);
+  state.selectedCandidate = null;
+  state.selectedArtistUrl = null;
+  state.artistCandidates = [];
+  hideArtistCandidates();
+  updateSubmitLabel();
+  el("error").hidden = true;
+  const query = el("artist-url").value.trim();
+  if (query.length >= 2 && !isLikelyUrl(query)) {
+    artistSearchTimer = setTimeout(() => searchArtistCandidates(query), 450);
+  }
+});
+el("artist-url").addEventListener("keydown", (event) => {
+  if (el("candidate-section").hidden) return;
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    setActiveCandidate(activeCandidateIndex + 1);
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    setActiveCandidate(activeCandidateIndex - 1);
+  } else if (event.key === "Enter" && activeCandidateIndex >= 0) {
+    event.preventDefault();
+    chooseArtistCandidate(activeCandidateIndex);
+  } else if (event.key === "Escape") {
+    hideArtistCandidates();
+  }
+});
+el("location-toggle").addEventListener("click", () => {
+  const open = el("location-toggle").getAttribute("aria-expanded") !== "true";
+  setLocationEditor(open);
+  if (open) el("start-location").focus();
+});
+el("start-location").addEventListener("input", () => syncLocationControl());
+el("start-location").addEventListener("change", () => syncLocationControl({ collapse: true }));
+el("start-location").addEventListener("blur", () => syncLocationControl({ collapse: true }));
+document.addEventListener("click", (event) => {
+  closeDatePopovers();
+  if (!event.target.closest(".artist-field")) hideArtistCandidates();
+});
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeDatePopovers();
 });
