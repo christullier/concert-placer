@@ -3,8 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0d12" />
-  <title>concert-placer</title>
+  <meta name="theme-color" content="#f0ede4" />
+  <meta
+    name="description"
+    content="Find an artist's upcoming shows, compare the drive, and put every stop on the map."
+  />
+  <title>Concert Placer — Put the tour on your map</title>
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -14,117 +18,185 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap"
     rel="stylesheet"
   />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
-<body>
+<body data-view="list">
   <div class="layout">
     <aside class="sidebar">
       <header class="brand">
-        <h1>concert<span class="brand-accent">-placer</span></h1>
-        <p class="tagline">how far is the show?</p>
+        <a class="brand-lockup" href="/" aria-label="Concert Placer home">
+          <span>Concert</span>
+          <span>Placer<span class="brand-mark">↗</span></span>
+        </a>
+        <p class="tagline">Put the tour on your map.</p>
       </header>
 
-      <form id="search-form" autocomplete="off">
-        <label class="field">
-          <span>Artist name or page URL</span>
-          <input id="artist-url" name="artist_query" type="text"
-                 placeholder="boygenius or https://…" required />
-        </label>
-        <label class="field">
-          <span>Start location</span>
-          <input id="start-location" name="start_location" type="text"
-                 placeholder="City, State" required />
-        </label>
-        <button id="submit" class="btn-primary" type="submit">Find concerts</button>
-      </form>
+      <section class="search-panel" aria-labelledby="search-heading">
+        <div class="panel-heading">
+          <span class="panel-number" aria-hidden="true">01</span>
+          <div>
+            <h1 id="search-heading">Find the next show.</h1>
+          </div>
+        </div>
 
-      <section id="candidate-section" class="candidates" hidden>
-        <h2 class="section-title">Artist matches</h2>
+        <form id="search-form" autocomplete="off">
+          <label class="field">
+            <span class="field-label">Who do you want to see?</span>
+            <span class="input-shell input-artist">
+              <input
+                id="artist-url"
+                name="artist_query"
+                type="text"
+                placeholder="Japanese Breakfast"
+                aria-describedby="artist-hint"
+                required
+              />
+            </span>
+            <span id="artist-hint" class="field-hint">Artist name or tour page URL</span>
+          </label>
+          <label class="field">
+            <span class="field-label">Where are you leaving from?</span>
+            <span class="input-shell input-location">
+              <input
+                id="start-location"
+                name="start_location"
+                type="text"
+                placeholder="Washington, DC"
+                required
+              />
+            </span>
+          </label>
+          <button id="submit" class="btn-primary" type="submit">
+            <span>Plot the tour</span>
+            <span class="button-arrow" aria-hidden="true">↗</span>
+          </button>
+        </form>
+      </section>
+
+      <section id="candidate-section" class="candidates utility-section" hidden>
+        <div class="utility-heading">
+          <h2 class="section-title">Choose an artist</h2>
+          <span class="eyebrow">MusicBrainz matches</span>
+        </div>
         <ul id="candidate-list" class="candidate-list"></ul>
       </section>
 
-      <section id="saved-section" class="saved" hidden>
-        <h2 class="section-title">Saved artists</h2>
+      <section id="saved-section" class="saved utility-section" hidden>
+        <div class="utility-heading">
+          <h2 class="section-title">Recent searches</h2>
+          <span class="eyebrow">Pick up where you left off</span>
+        </div>
         <ul id="saved-list" class="saved-list"></ul>
       </section>
 
-      <div id="error" class="error-banner" hidden></div>
-      <div id="status" class="status" hidden></div>
+      <div id="error" class="error-banner" role="alert" hidden></div>
+      <div id="status" class="status" role="status" aria-live="polite" hidden></div>
 
-      <section id="results-section" class="results" hidden>
+      <section id="results-section" class="results" aria-labelledby="artist-name" hidden>
         <div id="artist-header" class="artist-header" hidden>
-          <img id="artist-avatar" class="artist-avatar" alt="" hidden />
-          <div>
+          <div class="artist-image-wrap">
+            <img id="artist-avatar" class="artist-avatar" alt="" hidden />
+            <span class="artist-image-fallback" aria-hidden="true">LIVE</span>
+          </div>
+          <div class="artist-copy">
+            <span class="eyebrow">Upcoming route</span>
             <h2 id="artist-name" class="artist-name"></h2>
-            <p id="results-summary" class="results-summary"></p>
+            <p id="results-summary" class="results-summary" aria-live="polite"></p>
           </div>
         </div>
-        <div class="sort-row">
-          <span class="section-title">Sort by</span>
-          <div class="segmented" role="group" aria-label="Sort results">
-            <button type="button" data-sort="date">Date</button>
-            <button type="button" data-sort="distance" class="active">Distance</button>
+
+        <div class="results-controls">
+          <div class="sort-row">
+            <span class="section-title">Order</span>
+            <div class="segmented" role="group" aria-label="Sort results">
+              <button type="button" data-sort="distance" class="active">Closest</button>
+              <button type="button" data-sort="date">Soonest</button>
+            </div>
+          </div>
+          <div class="filter-row">
+            <div class="filter-group filter-toggles" aria-label="Show filters">
+              <button
+                type="button"
+                class="filter-toggle active"
+                data-filter="hideSoldOut"
+                aria-pressed="true"
+              >
+                Available only
+              </button>
+              <button
+                type="button"
+                class="filter-toggle active"
+                data-filter="hideUnreachable"
+                aria-pressed="true"
+              >
+                Drivable only
+              </button>
+            </div>
+            <div class="filter-group filter-distance-group">
+              <label for="filter-distance" id="filter-distance-label" class="filter-label"
+                >Any drive</label
+              >
+              <input
+                type="range"
+                id="filter-distance"
+                class="filter-slider"
+                min="50"
+                max="1000"
+                step="50"
+                value="1000"
+                aria-label="Maximum drive distance in miles"
+              />
+            </div>
+            <div class="filter-group filter-date-group">
+              <label class="filter-label" for="filter-date-from">From</label>
+              <input type="date" id="filter-date-from" class="filter-date" />
+              <span class="date-separator" aria-hidden="true">→</span>
+              <label class="filter-label" for="filter-date-to">To</label>
+              <input type="date" id="filter-date-to" class="filter-date" />
+            </div>
           </div>
         </div>
-        <div class="filter-row">
-          <div class="filter-group filter-toggles">
-            <button
-              type="button"
-              class="filter-toggle active"
-              data-filter="hideSoldOut"
-              aria-pressed="true"
-            >
-              Hide sold out
-            </button>
-            <button
-              type="button"
-              class="filter-toggle active"
-              data-filter="hideUnreachable"
-              aria-pressed="true"
-            >
-              Hide unreachable
-            </button>
-          </div>
-          <div class="filter-group filter-distance-group">
-            <label for="filter-distance" id="filter-distance-label" class="filter-label"
-              >Any drive</label
-            >
-            <input
-              type="range"
-              id="filter-distance"
-              class="filter-slider"
-              min="50"
-              max="1000"
-              step="50"
-              value="1000"
-              aria-label="Maximum drive distance in miles"
-            />
-          </div>
-          <div class="filter-group filter-date-group">
-            <label class="filter-label" for="filter-date-from">From</label>
-            <input type="date" id="filter-date-from" class="filter-date" />
-            <label class="filter-label" for="filter-date-to">To</label>
-            <input type="date" id="filter-date-to" class="filter-date" />
-          </div>
+
+        <div id="external-tour-link" class="external-tour-link" hidden>
+          <span class="external-stamp" aria-hidden="true">↗</span>
+          <p id="external-tour-copy" class="external-tour-copy"></p>
+          <a
+            id="external-tour-cta"
+            class="btn-primary external-tour-cta"
+            target="_blank"
+            rel="noopener noreferrer"
+          ></a>
         </div>
-        <ul id="cards" class="cards"></ul>
+        <ol id="cards" class="cards"></ol>
       </section>
+
+      <footer class="sidebar-footer"></footer>
     </aside>
 
-    <main id="map" aria-label="Concert map"></main>
+    <section class="map-shell" aria-label="Concert route map">
+      <div class="map-label" aria-hidden="true">
+        <span>Live route map</span>
+        <span>Drag to explore</span>
+      </div>
+      <main id="map" aria-label="Concert map"></main>
+      <div class="map-caption" aria-hidden="true">
+        <span>Every pin is a possibility.</span>
+        <span class="map-caption-arrow">↗</span>
+      </div>
+    </section>
 
     <nav class="view-toggle" role="group" aria-label="Switch between list and map">
-      <button type="button" data-view="list" class="active">List</button>
+      <button type="button" data-view="list" class="active">Shows</button>
       <button type="button" data-view="map">Map</button>
     </nav>
   </div>
 
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    integrity="sha256-20nQCchB9coqIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
   <script src="/static/app.js"></script>

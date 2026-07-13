@@ -1,10 +1,10 @@
 "use strict";
 
 const COLORS = {
-  drivable: "#22c55e",
-  soldOut: "#f59e0b",
-  unreachable: "#ef4444",
-  start: "#8b5cf6",
+  drivable: "#3348ff",
+  soldOut: "#ff6044",
+  unreachable: "#c83328",
+  start: "#d8ff3e",
 };
 
 const TOUR_LOADING_MESSAGES = [
@@ -31,6 +31,9 @@ const state = {
   artistCandidates: [],
   start: null,
   artist: null,
+  parseStatus: "full",
+  externalUrl: null,
+  provider: null,
   sortKey: "distance",
   filters: {
     hideSoldOut: true,
@@ -67,13 +70,17 @@ const el = (id) => document.getElementById(id);
 
 function initMap() {
   map = L.map("map", { zoomControl: true }).setView([39.5, -98.35], 4);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
     maxZoom: 19,
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
   }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
   addLegend();
+}
+
+function isMapReady() {
+  return Boolean(map && markerLayer);
 }
 
 function addLegend() {
@@ -201,13 +208,61 @@ function statusChip(concert) {
   return "";
 }
 
+function isSafeTicketUrl(url) {
+  return typeof url === "string" && /^https?:\/\//i.test(url);
+}
+
+function ticketLinkHtml(concert, className = "card-tickets") {
+  if (!isSafeTicketUrl(concert.ticket_url)) return "";
+  return `<a class="${className}" href="${escapeHtml(concert.ticket_url)}" target="_blank" rel="noopener noreferrer">Tickets</a>`;
+}
+
+function isLinkOnlyResults() {
+  return state.parseStatus === "link_only";
+}
+
 function render() {
+  renderExternalTourLink();
   renderCards();
   renderMarkers();
 }
 
+function renderExternalTourLink() {
+  const block = el("external-tour-link");
+  const copy = el("external-tour-copy");
+  const cta = el("external-tour-cta");
+  const sortRow = document.querySelector(".sort-row");
+  const filterRow = document.querySelector(".filter-row");
+  const cards = el("cards");
+  const viewToggle = document.querySelector(".view-toggle");
+
+  if (!isLinkOnlyResults()) {
+    block.hidden = true;
+    if (sortRow) sortRow.hidden = false;
+    if (filterRow) filterRow.hidden = false;
+    if (viewToggle) viewToggle.hidden = !isMapReady();
+    return;
+  }
+
+  const providerName = formatProviderName(state.provider);
+  copy.textContent = `Shows are listed on ${providerName}, but this page doesn't expose dates we can map.`;
+  cta.textContent = `View shows on ${providerName}`;
+  cta.href = state.externalUrl ?? "#";
+  block.hidden = false;
+  if (sortRow) sortRow.hidden = true;
+  if (filterRow) filterRow.hidden = true;
+  cards.innerHTML = "";
+  if (viewToggle) viewToggle.hidden = true;
+
+  const summary = el("results-summary");
+  summary.textContent = `Shows available on ${providerName} — open the site for dates and tickets`;
+}
+
 function renderCards() {
   const cards = el("cards");
+  if (isLinkOnlyResults()) {
+    return;
+  }
   cards.innerHTML = "";
 
   const visibleConcerts = sortedConcerts();
@@ -215,6 +270,7 @@ function renderCards() {
     const li = document.createElement("li");
     li.className = "card" + (state.selectedId === id ? " selected" : "");
     li.dataset.id = id;
+    li.tabIndex = 0;
 
     const distance =
       concert.distance != null
@@ -233,7 +289,10 @@ function renderCards() {
       <div class="card-city">${escapeHtml(concert.city)}</div>
       <div class="card-bottom">
         ${cardDateHtml(concert.start_date)}
-        ${statusChip(concert)}
+        <div class="card-actions">
+          ${ticketLinkHtml(concert)}
+          ${statusChip(concert)}
+        </div>
       </div>
       ${error}
     `;
@@ -241,7 +300,15 @@ function renderCards() {
       event.stopPropagation();
       toggleDatePopover(event.currentTarget);
     });
+    li.querySelector(".card-tickets")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
     li.addEventListener("click", () => select(id, { pan: true }));
+    li.addEventListener("keydown", (event) => {
+      if (event.target !== li || (event.key !== "Enter" && event.key !== " ")) return;
+      event.preventDefault();
+      select(id, { pan: true });
+    });
     cards.appendChild(li);
   }
 
@@ -272,6 +339,12 @@ function renderCards() {
 }
 
 function renderMarkers() {
+  if (!isMapReady()) {
+    markersById.clear();
+    lastBounds = null;
+    return;
+  }
+
   markerLayer.clearLayers();
   markersById.clear();
 
@@ -284,6 +357,14 @@ function renderMarkers() {
     }).bindPopup(`<strong>Start</strong><br>${escapeHtml(state.start.address ?? "")}`);
     markerLayer.addLayer(startMarker);
     bounds.push([state.start.lat, state.start.lng]);
+  }
+
+  if (isLinkOnlyResults()) {
+    lastBounds = bounds.length ? bounds : null;
+    if (lastBounds && !(mobileQuery.matches && document.body.dataset.view !== "map")) {
+      map.fitBounds(lastBounds, { padding: [50, 50], maxZoom: 10 });
+    }
+    return;
   }
 
   for (const { concert, id } of sortedConcerts()) {
@@ -306,6 +387,8 @@ function renderMarkers() {
 /* ---------- mobile list/map toggle ---------- */
 
 function setView(view) {
+  if (view === "map" && !isMapReady()) return;
+
   document.body.dataset.view = view;
   document.querySelectorAll(".view-toggle button").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === view);
@@ -335,6 +418,8 @@ function popupHtml(concert) {
   if (concert.distance != null) lines.push(`${Math.round(concert.distance)} mi drive`);
   if (concert.is_sold_out) lines.push("Sold out");
   else if (!concert.is_drivable) lines.push("Unreachable by road");
+  const tickets = ticketLinkHtml(concert, "popup-tickets");
+  if (tickets) lines.push(tickets);
   return lines.join("<br>");
 }
 
@@ -342,7 +427,7 @@ function select(id, { pan }) {
   state.selectedId = id;
 
   // On mobile a card tap (pan) reveals the map so the pin is actually visible.
-  if (pan && mobileQuery.matches && document.body.dataset.view !== "map") {
+  if (pan && isMapReady() && mobileQuery.matches && document.body.dataset.view !== "map") {
     setView("map");
   }
 
@@ -419,6 +504,7 @@ function showError(message) {
   banner.hidden = false;
   el("results-section").hidden = true;
   el("candidate-section").hidden = true;
+  document.body.classList.remove("has-results");
 }
 
 async function readErrorDetail(response) {
@@ -522,6 +608,9 @@ async function lookupConcerts(artistUrl, startLocation, { manageLoading = true }
     state.concerts = data.concerts;
     state.start = data.start;
     state.artist = data.artist;
+    state.parseStatus = data.parse_status ?? "full";
+    state.externalUrl = data.external_url ?? null;
+    state.provider = data.provider ?? null;
     state.selectedId = null;
 
     el("candidate-section").hidden = true;
@@ -549,6 +638,7 @@ function renderArtistCandidates() {
 
   el("error").hidden = true;
   el("results-section").hidden = true;
+  document.body.classList.remove("has-results");
   section.hidden = false;
 
   for (const artist of state.artistCandidates) {
@@ -653,12 +743,19 @@ function renderSavedArtists(artists) {
     const li = document.createElement("li");
     li.className = "saved-chip";
     li.title = artist.url;
+    li.tabIndex = 0;
     li.innerHTML = `
       <span class="chip-name">${escapeHtml(artist.name)}</span>
       <span class="chip-when">${relativeTime(artist.last_checked)}</span>
       <button class="chip-delete" type="button" aria-label="Remove ${escapeHtml(artist.name)}">✕</button>
     `;
     li.addEventListener("click", () => {
+      el("artist-url").value = artist.url;
+      search();
+    });
+    li.addEventListener("keydown", (event) => {
+      if (event.target !== li || (event.key !== "Enter" && event.key !== " ")) return;
+      event.preventDefault();
       el("artist-url").value = artist.url;
       search();
     });
@@ -709,6 +806,14 @@ async function loadDefaults() {
 
   if (configStartLocation && !el("start-location").value) {
     el("start-location").value = configStartLocation;
+  }
+}
+
+function applyInitialArtistQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const artistQuery = params.get("artist")?.trim();
+  if (artistQuery) {
+    el("artist-url").value = artistQuery;
   }
 }
 
@@ -791,7 +896,13 @@ function initFilterControls() {
   updateDistanceLabel();
 }
 
-initMap();
+try {
+  initMap();
+} catch (err) {
+  // Leaflet is loaded from a CDN; if it fails to load (offline, blocked, etc.)
+  // don't let a broken map abort the rest of the UI setup.
+  console.error("Map failed to initialize:", err);
+}
 initSortControls();
 initFilterControls();
 initViewToggle();
@@ -803,5 +914,6 @@ document.addEventListener("click", () => closeDatePopovers());
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeDatePopovers();
 });
+applyInitialArtistQuery();
 loadDefaults();
 loadSavedArtists();
