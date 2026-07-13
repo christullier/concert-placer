@@ -1,15 +1,21 @@
+import asyncio
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 from Concert import Concert
 from finder import (
     build_tour_result,
     detect_tour_provider,
     get_artist_id_from_html,
+    get_tour,
     insert_official_tour_attempt,
     parse_tour_page_html,
+    parse_songkick_calendar,
+    probe_tour_provider,
     ranked_artist_urls,
+    songkick_artist_id_from_url,
 )
 
 ROOT = Path(__file__).resolve().parent
@@ -23,6 +29,30 @@ def load_manifest() -> list[dict]:
 
 def saved_fixtures(manifest: list[dict]) -> list[dict]:
     return [entry for entry in manifest if entry.get("status") != "not_found"]
+
+
+def sample_songkick_payload() -> dict:
+    return {
+        "resultsPage": {
+            "status": "ok",
+            "results": {
+                "performance": [
+                    {
+                        "artist": {"id": 393441, "displayName": "DJ Krush"},
+                        "event": {
+                            "displayName": "DJ Krush at Stereo",
+                            "status": "ok",
+                            "uri": "https://www.songkick.com/concerts/43124271-dj-krush-at-stereo",
+                            "start": {"date": "2026-10-02"},
+                            "venue": {"displayName": "Stereo"},
+                            "location": {"city": "Glasgow, UK"},
+                        },
+                        "directTicketLink": "https://tickets.example/songkick",
+                    }
+                ]
+            },
+        }
+    }
 
 
 class TourFixtureTests(unittest.TestCase):
@@ -113,6 +143,81 @@ class TourFixtureTests(unittest.TestCase):
     def test_bare_artist_id_is_not_enough_to_detect_seated(self) -> None:
         html = '<div class="tour-widget" artist-id="abc123"></div>'
         self.assertIsNone(detect_tour_provider(html))
+
+    def test_songkick_artist_id_from_direct_url(self) -> None:
+        self.assertEqual(
+            songkick_artist_id_from_url("https://www.songkick.com/artists/393441-dj-krush/calendar"),
+            "393441",
+        )
+
+    def test_songkick_calendar_parses_full_event_rows(self) -> None:
+        parsed = parse_songkick_calendar(sample_songkick_payload())
+
+        self.assertEqual(parsed["artist_name"], "DJ Krush")
+        self.assertIn("/393441/", parsed["image_url"])
+        self.assertEqual(len(parsed["concerts"]), 1)
+        concert = parsed["concerts"][0]
+        self.assertEqual(
+            (concert.venue, concert.city, concert.start_date),
+            ("Stereo", "Glasgow, UK", "2026-10-02"),
+        )
+        self.assertEqual(concert.ticket_url, "https://tickets.example/songkick")
+        self.assertIsNone(concert.navigation_error)
+
+    def test_direct_songkick_probe_uses_calendar_without_fetching_artist_html(self) -> None:
+        with patch("finder.read_json", return_value=sample_songkick_payload()) as read_json_mock, patch(
+            "finder.read_url"
+        ) as read_url_mock:
+            result = probe_tour_provider("https://www.songkick.com/artists/393441-dj-krush/calendar")
+
+        self.assertEqual(result["provider"], "songkick")
+        self.assertEqual(result["songkick_artist_id"], "393441")
+        self.assertTrue(result["has_events"])
+        read_json_mock.assert_called_once()
+        read_url_mock.assert_not_called()
+
+    def test_direct_songkick_url_runs_through_full_tour_lookup(self) -> None:
+        with patch(
+            "finder.get_songkick_tour_info",
+            new=AsyncMock(return_value=sample_songkick_payload()),
+        ), patch(
+            "finder.enrich_concert",
+            new=AsyncMock(side_effect=lambda concert, *_args: concert),
+        ), patch("finder.read_url") as read_url_mock:
+            result = asyncio.run(
+                get_tour(
+                    "https://www.songkick.com/artists/393441-dj-krush/calendar",
+                    "unused-maps-key",
+                    "Washington, DC",
+                )
+            )
+
+        self.assertEqual(result["provider"], "songkick")
+        self.assertEqual(result["parse_status"], "full")
+        self.assertEqual(result["artist_name"], "DJ Krush")
+        self.assertEqual(len(result["concerts"]), 1)
+        read_url_mock.assert_not_called()
+
+    def test_songkick_calendar_failure_falls_back_to_external_link(self) -> None:
+        with patch(
+            "finder.get_songkick_tour_info",
+            new=AsyncMock(side_effect=RuntimeError("calendar unavailable")),
+        ), patch("finder.read_url") as read_url_mock:
+            result = asyncio.run(
+                get_tour(
+                    "https://www.songkick.com/artists/393441-dj-krush/calendar",
+                    "unused-maps-key",
+                    "Washington, DC",
+                )
+            )
+
+        self.assertEqual(result["provider"], "songkick")
+        self.assertEqual(result["parse_status"], "link_only")
+        self.assertEqual(
+            result["external_url"],
+            "https://www.songkick.com/artists/393441-dj-krush/calendar",
+        )
+        read_url_mock.assert_not_called()
 
     def test_tour_provider_relations_rank_before_social_links(self) -> None:
         relations = [

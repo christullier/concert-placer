@@ -26,6 +26,16 @@ const ARTIST_RESOLVE_LOADING_MESSAGES = [
   "Geocoding venues…",
 ];
 
+const ARTIST_UNAVAILABLE_MESSAGE = "Sorry, this one seems unavailable. Try another artist.";
+
+const BROWSER_CACHE_VERSION = "v1";
+const BROWSER_CACHE_MAX_ENTRIES = 50;
+const BROWSER_CACHE_TTL = {
+  artistSearch: 24 * 60 * 60 * 1000,
+  artistResolution: 24 * 60 * 60 * 1000,
+  concerts: 6 * 60 * 60 * 1000,
+};
+
 const state = {
   concerts: [],
   artistCandidates: [],
@@ -76,6 +86,51 @@ const artistResolutionCache = new Map();
 const mobileQuery = window.matchMedia("(max-width: 900px)");
 
 const el = (id) => document.getElementById(id);
+
+/* ---------- browser cache ---------- */
+
+function browserCacheStorageKey(namespace) {
+  return `concert-placer:${BROWSER_CACHE_VERSION}:${namespace}`;
+}
+
+function readBrowserCache(namespace, key, maxAgeMs) {
+  try {
+    const storageKey = browserCacheStorageKey(namespace);
+    const entries = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
+    const entry = entries[key];
+    if (!entry) return null;
+    if (!entry.savedAt || Date.now() - entry.savedAt > maxAgeMs) {
+      delete entries[key];
+      localStorage.setItem(storageKey, JSON.stringify(entries));
+      return null;
+    }
+    return entry.value;
+  } catch {
+    return null;
+  }
+}
+
+function writeBrowserCache(namespace, key, value) {
+  try {
+    const storageKey = browserCacheStorageKey(namespace);
+    const entries = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
+    entries[key] = { savedAt: Date.now(), value };
+
+    const newestEntries = Object.entries(entries)
+      .sort(([, a], [, b]) => (b.savedAt ?? 0) - (a.savedAt ?? 0))
+      .slice(0, BROWSER_CACHE_MAX_ENTRIES);
+    localStorage.setItem(storageKey, JSON.stringify(Object.fromEntries(newestEntries)));
+  } catch {
+    // Storage can be unavailable or full; a cache miss should never block lookup.
+  }
+}
+
+function concertCacheKey(artistUrl, startLocation) {
+  return JSON.stringify([
+    artistUrl.trim(),
+    startLocation.trim().replace(/\s+/g, " ").toLowerCase(),
+  ]);
+}
 
 /* ---------- map ---------- */
 
@@ -708,14 +763,19 @@ async function searchArtistCandidates(artistQuery, { showEmptyError = false } = 
   const requestVersion = ++artistSearchVersion;
   setArtistSearchPending(true);
   try {
-    let artists = artistSearchCache.get(query.toLowerCase());
+    const cacheKey = query.toLowerCase();
+    let artists = artistSearchCache.get(cacheKey);
+    if (!artists) {
+      artists = readBrowserCache("artist-search", cacheKey, BROWSER_CACHE_TTL.artistSearch);
+    }
     if (!artists) {
       const response = await fetch(`/api/artist-search?q=${encodeURIComponent(query)}`);
       if (!response.ok) throw new Error(await readErrorDetail(response));
       const data = await response.json();
       artists = (data.artists ?? []).slice(0, 5);
-      artistSearchCache.set(query.toLowerCase(), artists);
+      writeBrowserCache("artist-search", cacheKey, artists);
     }
+    artistSearchCache.set(cacheKey, artists);
 
     if (requestVersion !== artistSearchVersion || el("artist-url").value.trim() !== query) return [];
     state.artistCandidates = artists;
@@ -733,13 +793,27 @@ async function searchArtistCandidates(artistQuery, { showEmptyError = false } = 
 
 function prefetchArtistResolution(artist) {
   if (!artist?.mbid || artistResolutionCache.has(artist.mbid)) return;
+  const cached = readBrowserCache(
+    "artist-resolution",
+    artist.mbid,
+    BROWSER_CACHE_TTL.artistResolution,
+  );
+  if (cached) {
+    artistResolutionCache.set(artist.mbid, Promise.resolve(cached));
+    return;
+  }
+
   const promise = fetch("/api/resolve-artist", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mbid: artist.mbid }),
   }).then(async (response) => {
     if (!response.ok) throw new Error(await readErrorDetail(response));
-    return response.json();
+    const resolved = await response.json();
+    if (resolved.artist_url) {
+      writeBrowserCache("artist-resolution", artist.mbid, resolved);
+    }
+    return resolved;
   });
   artistResolutionCache.set(artist.mbid, promise);
   promise.catch(() => artistResolutionCache.delete(artist.mbid));
@@ -758,22 +832,36 @@ async function resolveArtistAndLookup(artist) {
   try {
     const resolved = await resolveArtist(artist);
     if (!resolved.artist_url) {
-      showResolutionFailure(artist, resolved);
+      showArtistUnavailable();
       return;
     }
 
     state.selectedArtistUrl = resolved.artist_url;
-    await lookupConcerts(resolved.artist_url, startLocation, { manageLoading: false });
+    await lookupConcerts(resolved.artist_url, startLocation, {
+      manageLoading: false,
+      unavailableOnError: true,
+    });
   } catch (error) {
-    showError(`Artist resolution failed: ${error.message}`);
+    showArtistUnavailable();
   } finally {
     setLoading(false);
   }
 }
 
-async function lookupConcerts(artistUrl, startLocation, { manageLoading = true } = {}) {
+async function lookupConcerts(
+  artistUrl,
+  startLocation,
+  { manageLoading = true, unavailableOnError = false } = {},
+) {
   if (manageLoading) setLoading(true, TOUR_LOADING_MESSAGES);
   try {
+    const cacheKey = concertCacheKey(artistUrl, startLocation);
+    const cached = readBrowserCache("concerts", cacheKey, BROWSER_CACHE_TTL.concerts);
+    if (cached) {
+      displayConcertResults(cached);
+      return;
+    }
+
     const response = await fetch("/api/concerts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -781,30 +869,43 @@ async function lookupConcerts(artistUrl, startLocation, { manageLoading = true }
     });
 
     if (!response.ok) {
-      showError(await readErrorDetail(response));
+      if (unavailableOnError) {
+        showArtistUnavailable();
+      } else {
+        showError(await readErrorDetail(response));
+      }
       return;
     }
 
     const data = await response.json();
-    state.concerts = data.concerts;
-    state.start = data.start;
-    state.artist = data.artist;
-    state.parseStatus = data.parse_status ?? "full";
-    state.externalUrl = data.external_url ?? null;
-    state.provider = data.provider ?? null;
-    state.selectedId = null;
-
-    el("candidate-section").hidden = true;
-    el("results-section").hidden = false;
-    renderArtistHeader();
-    render();
-    enterResultsMode();
-    loadSavedArtists();
+    writeBrowserCache("concerts", cacheKey, data);
+    displayConcertResults(data);
   } catch (error) {
-    showError(`Lookup failed: ${error.message}`);
+    if (unavailableOnError) {
+      showArtistUnavailable();
+    } else {
+      showError(`Lookup failed: ${error.message}`);
+    }
   } finally {
     if (manageLoading) setLoading(false);
   }
+}
+
+function displayConcertResults(data) {
+  state.concerts = data.concerts;
+  state.start = data.start;
+  state.artist = data.artist;
+  state.parseStatus = data.parse_status ?? "full";
+  state.externalUrl = data.external_url ?? null;
+  state.provider = data.provider ?? null;
+  state.selectedId = null;
+
+  el("candidate-section").hidden = true;
+  el("results-section").hidden = false;
+  renderArtistHeader();
+  render();
+  enterResultsMode();
+  loadSavedArtists();
 }
 
 function renderArtistCandidates() {
@@ -898,17 +999,8 @@ function updateSubmitLabel() {
   }
 }
 
-function showResolutionFailure(artist, resolved) {
-  const triedUrls = resolved.tried_urls ?? [];
-  const urls = triedUrls.map((candidate) => candidate.url).filter(Boolean);
-  const tried = urls.length ? `\nTried:\n${urls.join("\n")}` : "\nNo usable MusicBrainz URLs found.";
-  const unsupported = resolved.unsupported_provider;
-  if (unsupported?.provider) {
-    const provider = formatProviderName(unsupported.provider);
-    showError(`Found ${artist.name}, but the linked tour source uses ${provider}, which is not supported for concert lookup yet.${tried}`);
-    return;
-  }
-  showError(`Found ${artist.name}, but none of the linked sites had supported tour data.${tried}`);
+function showArtistUnavailable() {
+  showError(ARTIST_UNAVAILABLE_MESSAGE);
 }
 
 function formatProviderName(provider) {
