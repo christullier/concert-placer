@@ -88,7 +88,6 @@ function initMap() {
   }).addTo(map);
   L.control.zoom({ position: "topright" }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
-  addLegend();
 }
 
 function isMapReady() {
@@ -486,12 +485,14 @@ function enterResultsMode() {
   setLandingInert(true);
   document.body.classList.add("has-results");
   document.body.dataset.view = "map";
+  el("map-back").hidden = false;
   refreshMapLayout();
 }
 
 function exitResultsMode() {
   setLandingInert(false);
   document.body.classList.remove("has-results");
+  el("map-back").hidden = true;
   delete document.body.dataset.sheet;
   document.body.dataset.view = "list";
   el("results-section").hidden = true;
@@ -585,8 +586,22 @@ function select(id, { pan, fromMarker = false }) {
 
   const marker = markersById.get(id);
   if (marker) {
-    if (pan) map.panTo(marker.getLatLng());
+    if (pan) zoomToRoute(marker.getLatLng());
     marker.openPopup();
+  }
+}
+
+// Frame the map so both the start location and the selected concert are visible.
+function zoomToRoute(destination) {
+  if (!map) return;
+  if (state.start && state.start.lat != null) {
+    const bounds = L.latLngBounds([
+      [state.start.lat, state.start.lng],
+      [destination.lat, destination.lng],
+    ]);
+    map.fitBounds(bounds, mapFitOptions());
+  } else {
+    map.panTo(destination);
   }
 }
 
@@ -1208,6 +1223,7 @@ el("sheet-handle").addEventListener("pointerup", onSheetPointerUp);
 el("sheet-handle").addEventListener("pointercancel", onSheetPointerUp);
 el("sheet-handle").addEventListener("click", cycleSheetPosition);
 el("new-search").addEventListener("click", exitResultsMode);
+el("map-back").addEventListener("click", exitResultsMode);
 map?.on("click", () => {
   if (
     mobileQuery.matches &&
