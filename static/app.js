@@ -618,7 +618,7 @@ function setLoading(loading, messages = TOUR_LOADING_MESSAGES) {
 
   if (loading) {
     el("error").hidden = true;
-    el("results-section").hidden = false;
+    el("results-section").hidden = true;
     el("artist-header").hidden = true;
     el("cards").innerHTML = "";
 

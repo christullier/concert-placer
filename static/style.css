@@ -1188,7 +1188,7 @@ body.search-loading .saved {
 .map-back {
   position: absolute;
   top: max(16px, env(safe-area-inset-top));
-  right: 16px;
+  left: 16px;
   z-index: 950;
   display: none;
   place-items: center;
