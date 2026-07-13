@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 from Concert import Concert
 from finder import (
     bandsintown_artist_id_from_url,
+    bandsintown_artist_url_for_match,
     build_tour_result,
     detect_tour_provider,
     get_artist_id_from_html,
@@ -17,6 +18,7 @@ from finder import (
     parse_songkick_calendar,
     probe_tour_provider,
     ranked_artist_urls,
+    resolve_seated_artist_url,
     songkick_artist_id_from_url,
 )
 
@@ -258,6 +260,64 @@ class TourFixtureTests(unittest.TestCase):
         self.assertEqual(result["artist_name"], "Anderson .Paak")
         self.assertEqual(len(result["concerts"]), 2)
         read_url_mock.assert_not_called()
+
+    def test_bandsintown_name_fallback_requires_selected_musicbrainz_artist(self) -> None:
+        payload = sample_bandsintown_payload()
+        payload[0]["artist"]["mbid"] = "selected-mbid"
+
+        self.assertEqual(
+            bandsintown_artist_url_for_match(payload, "selected-mbid"),
+            "https://www.bandsintown.com/a/8679931",
+        )
+        self.assertIsNone(
+            bandsintown_artist_url_for_match(payload, "different-mbid")
+        )
+        del payload[0]["artist"]["mbid"]
+        self.assertIsNone(
+            bandsintown_artist_url_for_match(payload, "selected-mbid")
+        )
+
+    def test_artist_resolution_falls_back_to_matching_bandsintown_artist(self) -> None:
+        payload = sample_bandsintown_payload()
+        payload[0]["artist"]["mbid"] = "selected-mbid"
+
+        with patch(
+            "finder.get_musicbrainz_artist_urls",
+            new=AsyncMock(return_value=[]),
+        ), patch(
+            "finder.get_bandsintown_tour_info_by_name",
+            new=AsyncMock(return_value=payload),
+        ) as bandsintown_mock:
+            result = asyncio.run(
+                resolve_seated_artist_url(
+                    "selected-mbid",
+                    artist_name="Anderson .Paak",
+                )
+            )
+
+        self.assertEqual(result["artist_url"], "https://www.bandsintown.com/a/8679931")
+        self.assertEqual(result["provider"], "bandsintown")
+        bandsintown_mock.assert_awaited_once_with("Anderson .Paak")
+
+    def test_artist_resolution_rejects_mismatched_bandsintown_artist(self) -> None:
+        payload = sample_bandsintown_payload()
+        payload[0]["artist"]["mbid"] = "different-mbid"
+
+        with patch(
+            "finder.get_musicbrainz_artist_urls",
+            new=AsyncMock(return_value=[]),
+        ), patch(
+            "finder.get_bandsintown_tour_info_by_name",
+            new=AsyncMock(return_value=payload),
+        ):
+            result = asyncio.run(
+                resolve_seated_artist_url(
+                    "selected-mbid",
+                    artist_name="Anderson .Paak",
+                )
+            )
+
+        self.assertIsNone(result["artist_url"])
 
     def test_songkick_calendar_parses_full_event_rows(self) -> None:
         parsed = parse_songkick_calendar(sample_songkick_payload())
