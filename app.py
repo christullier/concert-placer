@@ -57,6 +57,7 @@ _artists_lock = asyncio.Lock()
 class ConcertRequest(BaseModel):
     artist_url: str
     start_location: str
+    artist_name: str | None = None
 
 
 class ResolveArtistRequest(BaseModel):
@@ -341,7 +342,12 @@ async def lookup_concerts(request: ConcertRequest) -> dict:
     try:
         start, tour = await asyncio.gather(
             geocode_start(start_location, api_key),
-            get_tour(artist_url, api_key, start_location),
+            get_tour(
+                artist_url,
+                api_key,
+                start_location,
+                preferred_artist_name=request.artist_name,
+            ),
         )
     except TourPageParseError as exc:
         raise HTTPException(
