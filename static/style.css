@@ -1206,6 +1206,40 @@ body.search-loading .saved {
   pointer-events: none;
 }
 
+.map-back {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: 16px;
+  z-index: 950;
+  display: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: var(--paper-light);
+  border: 1.5px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s, transform 0.14s;
+}
+
+.map-back:hover {
+  background: var(--ink);
+  color: var(--lime);
+  transform: translateY(-1px);
+}
+
+.map-back:active {
+  transform: translateY(0);
+}
+
+body.has-results .map-back:not([hidden]) {
+  display: grid;
+}
+
 .map-label {
   top: 24px;
   left: 24px;

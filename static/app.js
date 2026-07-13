@@ -480,12 +480,14 @@ function enterResultsMode() {
   setLandingInert(true);
   document.body.classList.add("has-results");
   document.body.dataset.view = "map";
+  el("map-back").hidden = false;
   refreshMapLayout();
 }
 
 function exitResultsMode() {
   setLandingInert(false);
   document.body.classList.remove("has-results");
+  el("map-back").hidden = true;
   delete document.body.dataset.sheet;
   document.body.dataset.view = "list";
   el("results-section").hidden = true;
@@ -1212,6 +1214,7 @@ el("sheet-handle").addEventListener("pointermove", onSheetPointerMove);
 el("sheet-handle").addEventListener("pointerup", onSheetPointerUp);
 el("sheet-handle").addEventListener("pointercancel", onSheetPointerUp);
 el("sheet-handle").addEventListener("click", cycleSheetPosition);
+el("map-back").addEventListener("click", exitResultsMode);
 map?.on("click", () => {
   if (
     mobileQuery.matches &&
