@@ -21,7 +21,7 @@
     href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css?v=17" />
+  <link rel="stylesheet" href="/static/style.css?v=24" />
 </head>
 <body data-view="list">
   <div class="layout">
@@ -125,6 +125,10 @@
               <h2 id="artist-name" class="artist-name"></h2>
               <p id="results-summary" class="results-summary" aria-live="polite"></p>
             </div>
+            <button id="share-search" class="share-button" type="button" hidden>
+              <span id="share-label">Copy link</span>
+              <span aria-hidden="true">↗</span>
+            </button>
           </div>
 
           <div class="results-controls">
@@ -245,11 +249,12 @@
 
   </div>
 
+  <!-- shared-search-data -->
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
-  <script src="/static/app.js?v=11"></script>
+  <script src="/static/app.js?v=12"></script>
 </body>
 </html>

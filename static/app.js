@@ -228,7 +228,7 @@ function renderRollingPlaceholder(nextArtist) {
   }, 680);
 }
 
-const BROWSER_CACHE_VERSION = "v2";
+const BROWSER_CACHE_VERSION = "v3";
 const BROWSER_CACHE_MAX_ENTRIES = 50;
 const BROWSER_CACHE_TTL = {
   artistSearch: 24 * 60 * 60 * 1000,
@@ -256,6 +256,9 @@ const state = {
   loading: false,
   selectedCandidate: null,
   selectedArtistUrl: null,
+  sharePath: null,
+  shareError: null,
+  isSharedSearch: false,
   sheetPosition: "both",
 };
 
@@ -280,6 +283,7 @@ let activeCandidateIndex = -1;
 let sheetDragStartY = null;
 let sheetDragStartHeight = null;
 let sheetDidDrag = false;
+let shareLabelTimer = null;
 const artistSearchCache = new Map();
 const artistResolutionCache = new Map();
 
@@ -337,6 +341,27 @@ function concertCacheKey(artistUrl, startLocation) {
     artistUrl.trim(),
     startLocation.trim().replace(/\s+/g, " ").toLowerCase(),
   ]);
+}
+
+function readEmbeddedSharedSearch() {
+  const data = el("shared-search-data");
+  if (!data) return null;
+  try {
+    const payload = JSON.parse(data.textContent);
+    if (
+      payload?.v !== 1 ||
+      typeof payload.artist_url !== "string" ||
+      typeof payload.start_location !== "string" ||
+      !payload.result ||
+      !Array.isArray(payload.result.concerts)
+    ) {
+      throw new Error("Unsupported shared search data");
+    }
+    return payload;
+  } catch (error) {
+    console.error("Shared search failed to load:", error);
+    return null;
+  }
 }
 
 /* ---------- map ---------- */
@@ -1103,21 +1128,75 @@ async function lookupConcerts(
   }
 }
 
-function displayConcertResults(data) {
+function displayConcertResults(data, { shared = false } = {}) {
   state.concerts = data.concerts;
   state.start = data.start;
   state.artist = data.artist;
   state.parseStatus = data.parse_status ?? "full";
   state.externalUrl = data.external_url ?? null;
   state.provider = data.provider ?? null;
+  state.isSharedSearch = shared;
+  state.sharePath = shared ? window.location.pathname : (data.share_path ?? null);
+  state.shareError = data.share_error ?? null;
   state.selectedId = null;
 
   el("candidate-section").hidden = true;
   el("results-section").hidden = false;
   renderArtistHeader();
+  renderShareControl();
   render();
   enterResultsMode();
-  loadSavedArtists();
+  if (!shared) loadSavedArtists();
+}
+
+function renderShareControl() {
+  const button = el("share-search");
+  if (!button) return;
+  button.hidden = !state.sharePath;
+  button.disabled = !state.sharePath;
+  button.title = state.shareError ?? "Copy a self-contained link to these results";
+  el("share-label").textContent = "Copy link";
+}
+
+function copyTextFallback(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch {
+    copied = false;
+  }
+  textarea.remove();
+  return copied;
+}
+
+async function copyShareLink() {
+  if (!state.sharePath) return;
+  const url = new URL(state.sharePath, window.location.origin).href;
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(url);
+    copied = true;
+  } catch {
+    copied = copyTextFallback(url);
+  }
+
+  if (!copied) {
+    window.prompt("Copy this shared search link:", url);
+    return;
+  }
+
+  window.clearTimeout(shareLabelTimer);
+  el("share-label").textContent = "Copied";
+  shareLabelTimer = window.setTimeout(() => {
+    el("share-label").textContent = "Copy link";
+  }, 1800);
 }
 
 function renderArtistCandidates() {
@@ -1443,6 +1522,15 @@ function applyInitialArtistQuery() {
   }
 }
 
+function displayEmbeddedSharedSearch(payload) {
+  state.selectedCandidate = null;
+  state.selectedArtistUrl = payload.artist_url;
+  setArtistQueryValue(payload.result.artist?.name ?? payload.artist_url);
+  el("start-location").value = payload.start_location;
+  syncLocationControl({ collapse: true });
+  displayConcertResults(payload.result, { shared: true });
+}
+
 function initSortControls() {
   document.querySelectorAll(".sort-row .segmented button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1575,6 +1663,7 @@ el("sheet-handle").addEventListener("pointerup", onSheetPointerUp);
 el("sheet-handle").addEventListener("pointercancel", onSheetPointerUp);
 el("sheet-handle").addEventListener("click", cycleSheetPosition);
 el("map-back").addEventListener("click", exitResultsMode);
+el("share-search").addEventListener("click", copyShareLink);
 map?.on("click", () => {
   if (
     mobileQuery.matches &&
@@ -1661,8 +1750,13 @@ el("start-location").addEventListener("blur", () => syncLocationControl({ collap
 document.addEventListener("click", (event) => {
   if (!event.target.closest(".artist-field")) hideArtistCandidates();
 });
-applyInitialArtistQuery();
-startPlaceholderCycle();
-startSavedArtistAutoScroll();
-loadDefaults();
-loadSavedArtists();
+const embeddedSharedSearch = readEmbeddedSharedSearch();
+if (embeddedSharedSearch) {
+  displayEmbeddedSharedSearch(embeddedSharedSearch);
+} else {
+  applyInitialArtistQuery();
+  startPlaceholderCycle();
+  startSavedArtistAutoScroll();
+  loadDefaults();
+  loadSavedArtists();
+}

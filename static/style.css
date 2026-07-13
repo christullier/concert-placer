@@ -776,7 +776,7 @@ body.search-loading .status.search-status {
 
 .artist-header {
   display: grid;
-  grid-template-columns: 74px minmax(0, 1fr);
+  grid-template-columns: 74px minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
 }
@@ -839,6 +839,35 @@ body.search-loading .status.search-status {
   color: var(--ink-soft);
   font-size: 11px;
   font-weight: 600;
+}
+
+.share-button {
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 6px 9px;
+  background: var(--lime);
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 var(--ink);
+  transition: box-shadow 0.13s, transform 0.13s;
+}
+
+.share-button:hover:not(:disabled) {
+  box-shadow: 3px 3px 0 var(--ink);
+  transform: translate(-1px, -1px);
+}
+
+.share-button:active:not(:disabled) {
+  box-shadow: none;
+  transform: translate(2px, 2px);
 }
 
 .results-controls {
@@ -1610,7 +1639,7 @@ body.has-results .artist-image-wrap {
 }
 
 body.has-results .artist-header {
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: 64px minmax(0, 1fr) auto;
   gap: 12px;
 }
 
@@ -1911,7 +1940,7 @@ body.has-results .legend {
   }
 
   body.has-results .artist-header {
-    grid-template-columns: 58px minmax(0, 1fr);
+    grid-template-columns: 58px minmax(0, 1fr) auto;
     gap: 11px;
   }
 
@@ -1952,7 +1981,7 @@ body.has-results .legend {
   }
 
   body:not(.has-results) .artist-header {
-    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-columns: 64px minmax(0, 1fr) auto;
   }
 
   .artist-image-wrap {
