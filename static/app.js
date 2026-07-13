@@ -1222,7 +1222,6 @@ el("sheet-handle").addEventListener("pointermove", onSheetPointerMove);
 el("sheet-handle").addEventListener("pointerup", onSheetPointerUp);
 el("sheet-handle").addEventListener("pointercancel", onSheetPointerUp);
 el("sheet-handle").addEventListener("click", cycleSheetPosition);
-el("new-search").addEventListener("click", exitResultsMode);
 el("map-back").addEventListener("click", exitResultsMode);
 map?.on("click", () => {
   if (
