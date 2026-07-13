@@ -3,6 +3,7 @@ from datetime import datetime
 from html import unescape
 from html.parser import HTMLParser
 import json
+import math
 import os
 import re
 import time
@@ -17,6 +18,24 @@ from Concert import Concert
 
 GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 DIRECTIONS_URL = "https://maps.googleapis.com/maps/api/directions/json"
+FALLBACK_GEOCODER_URL = os.getenv(
+    "FALLBACK_GEOCODER_URL",
+    "https://nominatim.openstreetmap.org/search",
+)
+FALLBACK_GEOCODER_USER_AGENT = os.getenv(
+    "FALLBACK_GEOCODER_USER_AGENT",
+    "concert-placer/1.0 (https://github.com/christullier/concert-placer)",
+)
+FALLBACK_GEOCODER_MIN_INTERVAL_SECONDS = 1.05
+ESTIMATED_ROAD_DISTANCE_FACTOR = 1.25
+EARTH_RADIUS_MILES = 3958.7613
+GOOGLE_MAPS_RETRY_SECONDS = 60
+GOOGLE_MAPS_FALLBACK_STATUSES = {
+    "OVER_DAILY_LIMIT",
+    "OVER_QUERY_LIMIT",
+    "REQUEST_DENIED",
+    "RESOURCE_EXHAUSTED",
+}
 SEATED_TOUR_URL = "https://cdn.seated.com/api/tour/{artist_id}"
 SONGKICK_WIDGET_CALENDAR_URL = "https://widget-app.songkick.com/api/calendar/{artist_id}"
 BANDSINTOWN_WIDGET_EVENTS_URL = "https://rest.bandsintown.com/V4/artists/id_{artist_id}/events/"
@@ -41,6 +60,11 @@ MUSICBRAINZ_USER_AGENT = os.getenv(
 
 _musicbrainz_lock = asyncio.Lock()
 _last_musicbrainz_request = 0.0
+_fallback_geocoder_lock = asyncio.Lock()
+_fallback_geocode_cache: dict[str, dict | None] = {}
+_last_fallback_geocoder_request = 0.0
+_google_maps_semaphore = asyncio.Semaphore(4)
+_google_maps_disabled_until = 0.0
 SUPPORTED_TOUR_PROVIDERS = {
     "axs",
     "bandsintown",
@@ -130,11 +154,11 @@ def read_url(
         return page.read().decode("utf-8")
 
 
-def read_json(url: str, *, user_agent: str = USER_AGENT) -> dict:
+def read_json(url: str, *, user_agent: str = USER_AGENT) -> Any:
     return json.loads(read_url(url, user_agent=user_agent))
 
 
-async def read_json_async(url: str, *, user_agent: str = USER_AGENT) -> dict:
+async def read_json_async(url: str, *, user_agent: str = USER_AGENT) -> Any:
     return await asyncio.to_thread(read_json, url, user_agent=user_agent)
 
 
@@ -217,6 +241,13 @@ def clean_text(value: str | None) -> str:
     value = re.sub(r"(?i)</(?:p|div|li|td|th|h[1-6]|time|span)>", "\n", value)
     value = re.sub(r"<[^>]+>", " ", value)
     return " ".join(unescape(value).replace("\xa0", " ").split())
+
+
+def coordinate(value: Any) -> float | None:
+    try:
+        return float(value) if value not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
 
 
 def clean_lines(fragment: str) -> list[str]:
@@ -327,6 +358,8 @@ def normalized_concert(provider: str, venue: str, city: str, start_date: str, **
             "end_date": clean_text(kwargs.get("end_date")),
             "is_sold_out": bool(kwargs.get("is_sold_out")),
             "ticket_url": kwargs.get("ticket_url"),
+            "lat": kwargs.get("lat"),
+            "lng": kwargs.get("lng"),
         },
     )
 
@@ -400,6 +433,9 @@ def concert_from_json_ld(provider: str, event: dict[str, Any]) -> Concert | None
 
     venue = clean_text(location.get("name") or event.get("name"))
     city = address_to_city(location.get("address"))
+    geo = location.get("geo") or {}
+    if not isinstance(geo, dict):
+        geo = {}
     if not city and venue != event.get("name"):
         city = clean_text(event.get("name"))
     return normalized_concert(
@@ -409,6 +445,8 @@ def concert_from_json_ld(provider: str, event: dict[str, Any]) -> Concert | None
         str(event.get("startDate") or ""),
         end_date=str(event.get("endDate") or ""),
         ticket_url=offer_url_from_json_ld(event),
+        lat=coordinate(geo.get("latitude")),
+        lng=coordinate(geo.get("longitude")),
     )
 
 
@@ -715,6 +753,8 @@ def parse_bandsintown_events(data: Any) -> dict[str, Any]:
             end_date=end.split("T", 1)[0] if end else "",
             is_sold_out=bool(event.get("sold_out")),
             ticket_url=ticket_url,
+            lat=coordinate(venue.get("latitude")),
+            lng=coordinate(venue.get("longitude")),
         )
         if concert:
             concerts.append(concert)
@@ -809,6 +849,8 @@ def parse_songkick_calendar(data: dict[str, Any]) -> dict[str, Any]:
             end_date=clean_text(end.get("date") or end.get("datetime")),
             is_sold_out=status in {"sold_out", "soldout"},
             ticket_url=ticket_url,
+            lat=coordinate(venue.get("lat") or location.get("lat")),
+            lng=coordinate(venue.get("lng") or location.get("lng")),
         )
         if concert:
             concerts.append(concert)
@@ -1227,7 +1269,30 @@ def probe_tour_provider(url: str, *, timeout: int = ARTIST_PAGE_PROBE_TIMEOUT_SE
     return result
 
 
-async def resolve_seated_artist_url(mbid: str, max_urls: int = 3) -> dict:
+def bandsintown_artist_url_for_match(data: Any, mbid: str) -> str | None:
+    """Return a canonical Bandsintown URL only for the selected MusicBrainz artist."""
+    for event in data if isinstance(data, list) else []:
+        if not isinstance(event, dict):
+            continue
+        artist = event.get("artist") or {}
+        if not isinstance(artist, dict):
+            continue
+
+        candidate_mbid = clean_text(artist.get("mbid"))
+        if candidate_mbid != mbid:
+            continue
+
+        artist_id = clean_text(str(artist.get("id") or event.get("artist_id") or ""))
+        if artist_id:
+            return f"https://www.bandsintown.com/a/{artist_id}"
+    return None
+
+
+async def resolve_seated_artist_url(
+    mbid: str,
+    max_urls: int = 3,
+    artist_name: str | None = None,
+) -> dict:
     candidates = await get_musicbrainz_artist_urls(mbid)
     probe_candidates = insert_official_tour_attempt(list(candidates[:max_urls]))
     tried_urls = []
@@ -1282,6 +1347,36 @@ async def resolve_seated_artist_url(mbid: str, max_urls: int = 3) -> dict:
             continue
         return match
 
+    # MusicBrainz relations are often missing a tour provider even when the
+    # artist has current shows. Bandsintown can resolve by name; require its
+    # returned MBID to match the artist the user selected before trusting the
+    # result. A same-name match alone is not specific enough.
+    if artist_name:
+        try:
+            bandsintown_events = await get_bandsintown_tour_info_by_name(artist_name)
+            bandsintown_url = bandsintown_artist_url_for_match(
+                bandsintown_events,
+                mbid,
+            )
+        except Exception:
+            bandsintown_url = None
+        if bandsintown_url:
+            tried_urls.append(
+                {
+                    "url": bandsintown_url,
+                    "type": "bandsintown name lookup",
+                    "detected_provider": "bandsintown",
+                }
+            )
+            return {
+                "artist_url": bandsintown_url,
+                "source_url": bandsintown_url,
+                "seated_artist_id": None,
+                "provider": "bandsintown",
+                "tried_urls": tried_urls,
+                "candidates": candidates[:max_urls],
+            }
+
     if eventless_fallback is not None:
         return eventless_fallback
 
@@ -1312,20 +1407,140 @@ async def get_bandsintown_tour_info_by_name(artist_name: str) -> Any:
     return await read_json_async(bandsintown_events_url_for_name(artist_name))
 
 
-async def geocode(query: str, api_key: str) -> dict | None:
-    url = build_url(GEOCODE_URL, {"address": query, "key": api_key})
-    maps_json = await read_json_async(url)
+def _google_maps_fallback_active() -> bool:
+    return time.monotonic() < _google_maps_disabled_until
 
-    if maps_json.get("status") != "OK" or not maps_json.get("results"):
+
+async def read_google_maps_json(url: str, api_key: str) -> dict | None:
+    """Read Google Maps data, temporarily opening the fallback circuit on quota/auth errors."""
+    global _google_maps_disabled_until
+
+    if not api_key or _google_maps_fallback_active():
         return None
 
-    result = maps_json["results"][0]
-    location = result["geometry"]["location"]
-    return {
-        "address": result["formatted_address"],
-        "lat": location["lat"],
-        "lng": location["lng"],
-    }
+    async with _google_maps_semaphore:
+        if _google_maps_fallback_active():
+            return None
+        try:
+            data = await read_json_async(url)
+        except Exception:
+            _google_maps_disabled_until = time.monotonic() + GOOGLE_MAPS_RETRY_SECONDS
+            return None
+
+        if not isinstance(data, dict):
+            _google_maps_disabled_until = time.monotonic() + GOOGLE_MAPS_RETRY_SECONDS
+            return None
+        if data.get("status") in GOOGLE_MAPS_FALLBACK_STATUSES:
+            _google_maps_disabled_until = time.monotonic() + GOOGLE_MAPS_RETRY_SECONDS
+        return data
+
+
+def _fallback_geocode_cache_key(query: str) -> str:
+    return " ".join(query.casefold().split())
+
+
+async def fallback_geocode(query: str) -> dict | None:
+    """Geocode through Nominatim with its required serialization, rate limit, and cache."""
+    global _last_fallback_geocoder_request
+
+    cache_key = _fallback_geocode_cache_key(query)
+    if cache_key in _fallback_geocode_cache:
+        return _fallback_geocode_cache[cache_key]
+
+    async with _fallback_geocoder_lock:
+        if cache_key in _fallback_geocode_cache:
+            return _fallback_geocode_cache[cache_key]
+
+        elapsed = time.monotonic() - _last_fallback_geocoder_request
+        if elapsed < FALLBACK_GEOCODER_MIN_INTERVAL_SECONDS:
+            await asyncio.sleep(FALLBACK_GEOCODER_MIN_INTERVAL_SECONDS - elapsed)
+
+        url = build_url(
+            FALLBACK_GEOCODER_URL,
+            {
+                "q": query,
+                "format": "jsonv2",
+                "limit": "1",
+            },
+        )
+        try:
+            data = await read_json_async(
+                url,
+                user_agent=FALLBACK_GEOCODER_USER_AGENT,
+            )
+        except Exception:
+            return None
+        finally:
+            _last_fallback_geocoder_request = time.monotonic()
+
+        result = data[0] if isinstance(data, list) and data else None
+        if not isinstance(result, dict):
+            _fallback_geocode_cache[cache_key] = None
+            return None
+
+        try:
+            location = {
+                "address": str(result.get("display_name") or query),
+                "lat": float(result["lat"]),
+                "lng": float(result["lon"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            location = None
+        _fallback_geocode_cache[cache_key] = location
+        return location
+
+
+def straight_line_distance_miles(
+    start_lat: float,
+    start_lng: float,
+    destination_lat: float,
+    destination_lng: float,
+) -> float:
+    """Return great-circle distance between two WGS84 points."""
+    lat1 = math.radians(start_lat)
+    lat2 = math.radians(destination_lat)
+    delta_lat = math.radians(destination_lat - start_lat)
+    delta_lng = math.radians(destination_lng - start_lng)
+    haversine = (
+        math.sin(delta_lat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lng / 2) ** 2
+    )
+    return 2 * EARTH_RADIUS_MILES * math.asin(math.sqrt(haversine))
+
+
+def estimated_road_distance_miles(
+    start_lat: float,
+    start_lng: float,
+    destination_lat: float,
+    destination_lng: float,
+) -> float:
+    return round(
+        straight_line_distance_miles(
+            start_lat,
+            start_lng,
+            destination_lat,
+            destination_lng,
+        )
+        * ESTIMATED_ROAD_DISTANCE_FACTOR,
+        2,
+    )
+
+
+async def geocode(query: str, api_key: str) -> dict | None:
+    if api_key:
+        url = build_url(GEOCODE_URL, {"address": query, "key": api_key})
+        maps_json = await read_google_maps_json(url, api_key)
+
+        if maps_json and maps_json.get("status") == "OK" and maps_json.get("results"):
+            result = maps_json["results"][0]
+            location = result["geometry"]["location"]
+            return {
+                "address": result["formatted_address"],
+                "lat": location["lat"],
+                "lng": location["lng"],
+            }
+
+    return await fallback_geocode(query)
 
 
 async def geocode_start(start_location: str, api_key: str) -> dict | None:
@@ -1334,41 +1549,62 @@ async def geocode_start(start_location: str, api_key: str) -> dict | None:
 
 async def get_address(concert: Concert, api_key: str) -> str | None:
     query = f"{concert.venue}, {concert.city}"
-    url = build_url(GEOCODE_URL, {"address": query, "key": api_key})
-    maps_json = await read_json_async(url)
+    if concert.lat is not None and concert.lng is not None:
+        return query
+    if api_key:
+        url = build_url(GEOCODE_URL, {"address": query, "key": api_key})
+        maps_json = await read_google_maps_json(url, api_key)
 
-    if maps_json.get("status") != "OK" or not maps_json.get("results"):
-        concert.mark_navigation_error(f"geocode: {maps_json.get('status', 'UNKNOWN_ERROR')}")
+        if maps_json and maps_json.get("status") == "OK" and maps_json.get("results"):
+            result = maps_json["results"][0]
+            location = result["geometry"]["location"]
+            concert.lat = location["lat"]
+            concert.lng = location["lng"]
+            return result["formatted_address"]
+
+    location = await fallback_geocode(query)
+    if not location:
+        concert.mark_navigation_error("location unavailable")
         return None
-
-    result = maps_json["results"][0]
-    location = result["geometry"]["location"]
     concert.lat = location["lat"]
     concert.lng = location["lng"]
-    return result["formatted_address"]
+    return location["address"]
 
 
 async def get_travel_distance(concert: Concert, api_key: str, start_location: str) -> float | None:
     if not concert.address:
         return None
 
-    url = build_url(
-        DIRECTIONS_URL,
-        {
-            "departure_time": "now",
-            "destination": concert.address,
-            "origin": start_location,
-            "key": api_key,
-        },
-    )
-    travel_json = await read_json_async(url)
+    if api_key:
+        url = build_url(
+            DIRECTIONS_URL,
+            {
+                "departure_time": "now",
+                "destination": concert.address,
+                "origin": start_location,
+                "key": api_key,
+            },
+        )
+        travel_json = await read_google_maps_json(url, api_key)
+        if travel_json and travel_json.get("status") == "OK":
+            length_meters = travel_json["routes"][0]["legs"][0]["distance"]["value"]
+            return round(int(length_meters) / METERS_PER_MILE, 2)
+        if travel_json and travel_json.get("status") == "ZERO_RESULTS":
+            concert.mark_navigation_error("directions: ZERO_RESULTS")
+            return None
 
-    if travel_json.get("status") != "OK":
-        concert.mark_navigation_error(f"directions: {travel_json.get('status', 'UNKNOWN_ERROR')}")
+    start = await fallback_geocode(start_location)
+    if not start or concert.lat is None or concert.lng is None:
+        concert.mark_navigation_error("distance estimate unavailable")
         return None
 
-    length_meters = travel_json["routes"][0]["legs"][0]["distance"]["value"]
-    return round(int(length_meters) / METERS_PER_MILE, 2)
+    concert.distance_is_estimated = True
+    return estimated_road_distance_miles(
+        start["lat"],
+        start["lng"],
+        concert.lat,
+        concert.lng,
+    )
 
 
 async def enrich_concert(concert: Concert, api_key: str, start_location: str) -> Concert:
@@ -1542,7 +1778,7 @@ async def get_concerts(artist_url: str, api_key: str, start_location: str) -> li
 
 async def main() -> None:
     load_dotenv()
-    api_key = require_env("GOOGLE_MAPS_API_KEY")
+    api_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
     start_location = require_env("START_LOC")
     artist_url = require_env("ARTIST_URL")
 
