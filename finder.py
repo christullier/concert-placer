@@ -7,7 +7,7 @@ import os
 import re
 import time
 from typing import Any, Callable
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -19,6 +19,9 @@ GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 DIRECTIONS_URL = "https://maps.googleapis.com/maps/api/directions/json"
 SEATED_TOUR_URL = "https://cdn.seated.com/api/tour/{artist_id}"
 SONGKICK_WIDGET_CALENDAR_URL = "https://widget-app.songkick.com/api/calendar/{artist_id}"
+BANDSINTOWN_WIDGET_EVENTS_URL = "https://rest.bandsintown.com/V4/artists/id_{artist_id}/events/"
+BANDSINTOWN_WIDGET_EVENTS_BY_NAME_URL = "https://rest.bandsintown.com/V4/artists/{artist_name}/events/"
+BANDSINTOWN_WIDGET_APP_ID = os.getenv("BANDSINTOWN_APP_ID", "js_concert-placer")
 MUSICBRAINZ_ARTIST_URL = "https://musicbrainz.org/ws/2/artist"
 METERS_PER_MILE = 1609.344
 REQUEST_TIMEOUT_SECONDS = 30
@@ -623,6 +626,107 @@ def parse_songkick_widget(provider: str, html: str) -> list[Concert]:
     return []
 
 
+def bandsintown_artist_id_from_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    parsed = urlparse(url)
+    host = parsed.netloc.lower().split(":", 1)[0]
+    if host.startswith("www."):
+        host = host[4:]
+    if host == "bandsintown.com" or host.endswith(".bandsintown.com"):
+        match = re.search(r"/a/(\d+)(?:[-/?#]|$)", parsed.path)
+        if match:
+            return match.group(1)
+    return None
+
+
+def get_bandsintown_artist_id(*, html: str = "", source_url: str | None = None) -> str | None:
+    direct_id = bandsintown_artist_id_from_url(source_url)
+    if direct_id:
+        return direct_id
+    for pattern in (
+        r"bandsintown\.com/a/(\d+)",
+        r'data-artist-name=["\']id_(\d+)',
+        r'["\']artistId["\']\s*:\s*["\']?(\d+)',
+    ):
+        match = re.search(pattern, html, re.I)
+        if match:
+            return match.group(1)
+    return None
+
+
+def bandsintown_events_url(artist_id: str) -> str:
+    return build_url(
+        BANDSINTOWN_WIDGET_EVENTS_URL.format(artist_id=artist_id),
+        {"app_id": BANDSINTOWN_WIDGET_APP_ID},
+    )
+
+
+def bandsintown_events_url_for_name(artist_name: str) -> str:
+    return build_url(
+        BANDSINTOWN_WIDGET_EVENTS_BY_NAME_URL.format(artist_name=quote(artist_name, safe="")),
+        {"app_id": BANDSINTOWN_WIDGET_APP_ID},
+    )
+
+
+def parse_bandsintown_events(data: Any) -> dict[str, Any]:
+    events = data if isinstance(data, list) else []
+    concerts: list[Concert] = []
+    artist_name = None
+    image_url = None
+    artist_id = None
+
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        artist = event.get("artist") or {}
+        venue = event.get("venue") or {}
+        offers = event.get("offers") or []
+        if not isinstance(artist, dict):
+            artist = {}
+        if not isinstance(venue, dict):
+            venue = {}
+        if not isinstance(offers, list):
+            offers = []
+
+        artist_id = artist_id or clean_text(str(artist.get("id") or event.get("artist_id") or ""))
+        artist_name = artist_name or clean_text(artist.get("name"))
+        if not artist_name:
+            lineup = event.get("lineup") or []
+            if isinstance(lineup, list) and lineup:
+                artist_name = clean_text(str(lineup[0]))
+        image_url = image_url or normalize_image_url(artist.get("image_url"))
+
+        ticket_url = next(
+            (
+                clean_text(offer.get("url"))
+                for offer in offers
+                if isinstance(offer, dict) and clean_text(offer.get("url"))
+            ),
+            None,
+        ) or clean_text(event.get("url"))
+        start = clean_text(event.get("starts_at") or event.get("datetime"))
+        end = clean_text(event.get("ends_at"))
+        concert = normalized_concert(
+            "bandsintown",
+            clean_text(venue.get("name") or event.get("title")),
+            clean_text(venue.get("location")),
+            start.split("T", 1)[0],
+            end_date=end.split("T", 1)[0] if end else "",
+            is_sold_out=bool(event.get("sold_out")),
+            ticket_url=ticket_url,
+        )
+        if concert:
+            concerts.append(concert)
+
+    return {
+        "artist_id": artist_id,
+        "artist_name": artist_name or "Bandsintown",
+        "image_url": image_url,
+        "concerts": dedupe_concerts(concerts),
+    }
+
+
 def songkick_artist_id_from_url(url: str | None) -> str | None:
     if not url:
         return None
@@ -655,13 +759,16 @@ def get_songkick_artist_id(*, html: str = "", source_url: str | None = None) -> 
 def parse_songkick_calendar(data: dict[str, Any]) -> dict[str, Any]:
     results_page = data.get("resultsPage") or {}
     results = results_page.get("results") or {}
+    calendar_artist = results_page.get("artist") or {}
+    if not isinstance(calendar_artist, dict):
+        calendar_artist = {}
     performances = results.get("performance") or []
     if isinstance(performances, dict):
         performances = [performances]
 
     concerts: list[Concert] = []
-    artist_name = None
-    artist_id = None
+    artist_name = clean_text(calendar_artist.get("name")) or None
+    artist_id = clean_text(str(calendar_artist.get("id") or "")) or None
     for performance in performances:
         if not isinstance(performance, dict):
             continue
@@ -845,13 +952,20 @@ def parse_tour_page_html(html: str, provider: str | None = None, source_url: str
 
 
 async def search_musicbrainz_artists(query: str, limit: int = 8) -> list[dict]:
+    # MusicBrainz's relevance ranking is noisy for short stage names (for
+    # example, the exact artist "V" can land outside the first 8 results).
+    # Pull a modest candidate pool, then put exact name matches first.
+    candidate_limit = max(limit, 25)
     url = build_url(
         MUSICBRAINZ_ARTIST_URL,
-        {"query": query, "fmt": "json", "limit": str(limit)},
+        {"query": query, "fmt": "json", "limit": str(candidate_limit)},
     )
     musicbrainz_json = await read_musicbrainz_json_async(url)
     artists = musicbrainz_json.get("artists", [])
-    return [format_musicbrainz_artist(artist) for artist in artists if artist.get("id")]
+    formatted = [format_musicbrainz_artist(artist) for artist in artists if artist.get("id")]
+    normalized_query = query.strip().casefold()
+    formatted.sort(key=lambda artist: (artist.get("name") or "").strip().casefold() != normalized_query)
+    return formatted[:limit]
 
 
 def format_musicbrainz_artist(artist: dict) -> dict:
@@ -1056,6 +1170,17 @@ def has_real_tour_events(html: str, provider: str) -> bool:
 
 def probe_tour_provider(url: str, *, timeout: int = ARTIST_PAGE_PROBE_TIMEOUT_SECONDS) -> dict:
     provider = tour_provider_from_url(url)
+    if provider == "bandsintown":
+        artist_id = get_bandsintown_artist_id(source_url=url)
+        result = {"provider": provider, "bandsintown_artist_id": artist_id}
+        if artist_id:
+            result["parseable"] = True
+            try:
+                events = read_json(bandsintown_events_url(artist_id))
+                result["has_events"] = bool(parse_bandsintown_events(events)["concerts"])
+            except Exception:
+                result["has_events"] = False
+        return result
     if provider == "songkick":
         artist_id = get_songkick_artist_id(source_url=url)
         result = {"provider": provider, "songkick_artist_id": artist_id}
@@ -1073,6 +1198,16 @@ def probe_tour_provider(url: str, *, timeout: int = ARTIST_PAGE_PROBE_TIMEOUT_SE
     result = {"provider": provider}
     if provider == "seated":
         result["seated_artist_id"] = get_artist_id_from_html(html)
+    elif provider == "bandsintown":
+        artist_id = get_bandsintown_artist_id(html=html, source_url=url)
+        result["bandsintown_artist_id"] = artist_id
+        if artist_id:
+            result["parseable"] = True
+            try:
+                events = read_json(bandsintown_events_url(artist_id))
+                result["has_events"] = bool(parse_bandsintown_events(events)["concerts"])
+            except Exception:
+                result["has_events"] = False
     elif provider == "songkick":
         artist_id = get_songkick_artist_id(html=html, source_url=url)
         result["songkick_artist_id"] = artist_id
@@ -1166,6 +1301,14 @@ async def get_songkick_tour_info(artist_id: str) -> dict:
     return await read_json_async(SONGKICK_WIDGET_CALENDAR_URL.format(artist_id=artist_id))
 
 
+async def get_bandsintown_tour_info(artist_id: str) -> Any:
+    return await read_json_async(bandsintown_events_url(artist_id))
+
+
+async def get_bandsintown_tour_info_by_name(artist_name: str) -> Any:
+    return await read_json_async(bandsintown_events_url_for_name(artist_name))
+
+
 async def geocode(query: str, api_key: str) -> dict | None:
     url = build_url(GEOCODE_URL, {"address": query, "key": api_key})
     maps_json = await read_json_async(url)
@@ -1238,11 +1381,14 @@ async def enrich_concert(concert: Concert, api_key: str, start_location: str) ->
 
 async def get_tour(artist_url: str, api_key: str, start_location: str) -> dict:
     provider = tour_provider_from_url(artist_url)
-    # Direct Songkick pages currently reject non-browser HTML requests, but the
-    # artist id in their URL is all the public Tourbox calendar needs.
+    # Direct Songkick and Bandsintown pages reject non-browser HTML requests,
+    # but the artist id in their URLs is all their public widgets need.
     html = (
         ""
-        if provider == "songkick" and songkick_artist_id_from_url(artist_url)
+        if (
+            (provider == "songkick" and songkick_artist_id_from_url(artist_url))
+            or (provider == "bandsintown" and bandsintown_artist_id_from_url(artist_url))
+        )
         else await asyncio.to_thread(read_url, artist_url)
     )
     provider = detect_tour_provider(html) or provider
@@ -1260,6 +1406,35 @@ async def get_tour(artist_url: str, api_key: str, start_location: str) -> dict:
         ]
         artist_name = attributes.get("name")
         image_url = attributes.get("image-url")
+    elif provider == "bandsintown":
+        artist_id = get_bandsintown_artist_id(html=html, source_url=artist_url)
+        if not artist_id:
+            raise TourPageParseError("Could not find a Bandsintown artist id in this tour page.")
+        try:
+            bandsintown_json = await get_bandsintown_tour_info(artist_id)
+        except Exception:
+            metadata = parse_artist_metadata(html)
+            return build_tour_result(
+                html=html,
+                provider=provider,
+                artist_url=artist_url,
+                concerts=[],
+                artist_name=metadata.get("artist_name") or "Bandsintown",
+                image_url=metadata.get("image_url"),
+            )
+        parsed = parse_bandsintown_events(bandsintown_json)
+        concerts = parsed["concerts"]
+        artist_name = parsed["artist_name"]
+        image_url = parsed["image_url"]
+        if not concerts:
+            return build_tour_result(
+                html=html,
+                provider=provider,
+                artist_url=artist_url,
+                concerts=[],
+                artist_name=artist_name,
+                image_url=image_url,
+            )
     elif provider == "songkick":
         artist_id = get_songkick_artist_id(html=html, source_url=artist_url)
         if not artist_id:
@@ -1281,14 +1456,28 @@ async def get_tour(artist_url: str, api_key: str, start_location: str) -> dict:
         artist_name = parsed["artist_name"]
         image_url = parsed["image_url"]
         if not concerts:
-            return build_tour_result(
-                html=html,
-                provider=provider,
-                artist_url=artist_url,
-                concerts=[],
-                artist_name=artist_name,
-                image_url=image_url,
-            )
+            # Songkick sometimes has no current rows while Bandsintown does.
+            # Try the same artist name there so old saved Songkick links can
+            # still surface real dates in the map UI.
+            try:
+                bandsintown_json = await get_bandsintown_tour_info_by_name(artist_name)
+                bandsintown_parsed = parse_bandsintown_events(bandsintown_json)
+            except Exception:
+                bandsintown_parsed = {"concerts": []}
+            if bandsintown_parsed["concerts"]:
+                provider = "bandsintown"
+                concerts = bandsintown_parsed["concerts"]
+                artist_name = bandsintown_parsed["artist_name"]
+                image_url = bandsintown_parsed["image_url"]
+            else:
+                return build_tour_result(
+                    html=html,
+                    provider=provider,
+                    artist_url=artist_url,
+                    concerts=[],
+                    artist_name=artist_name,
+                    image_url=image_url,
+                )
     else:
         parsed = parse_tour_page_html(html, provider=provider, source_url=artist_url)
         concerts = parsed["concerts"]
