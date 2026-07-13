@@ -27,8 +27,208 @@ const ARTIST_RESOLVE_LOADING_MESSAGES = [
 ];
 
 const ARTIST_UNAVAILABLE_MESSAGE = "Sorry, this one seems unavailable. Try another artist.";
+const SELECTED_ROUTE_EDGE_PADDING = 32;
+const POPUP_EDGE_PADDING = [24, 24];
+const SITE_TITLE = "Concert";
+const SAVED_ARTIST_SCROLL_SPEED = 18;
 
-const BROWSER_CACHE_VERSION = "v1";
+// One-time snapshot of currently active, most popular touring artists.
+// Used only as cycling placeholder text in the artist search field.
+const POPULAR_ARTISTS = [
+  "Taylor Swift", "Beyoncé", "Bad Bunny", "Coldplay", "The Weeknd",
+  "Drake", "Kendrick Lamar", "SZA", "Olivia Rodrigo", "Billie Eilish",
+  "Ariana Grande", "Harry Styles", "Dua Lipa", "Post Malone", "Travis Scott",
+  "Zach Bryan", "Morgan Wallen", "Luke Combs", "Chris Stapleton", "Noah Kahan",
+  "Sabrina Carpenter", "Chappell Roan", "Tyler, the Creator", "Doja Cat", "Lana Del Rey",
+  "Bruno Mars", "Ed Sheeran", "Pink", "P!nk", "Metallica",
+  "Foo Fighters", "Green Day", "Pearl Jam", "Red Hot Chili Peppers", "Blink-182",
+  "Twenty One Pilots", "Paramore", "The Killers", "Arctic Monkeys", "Tame Impala",
+  "Vampire Weekend", "The Strokes", "Hozier", "Mumford & Sons", "The Lumineers",
+  "Fleet Foxes", "Bon Iver", "Sufjan Stevens", "Sylvan Esso", "Japanese Breakfast",
+  "Phoebe Bridgers", "boygenius", "Mitski", "Big Thief", "Weyes Blood",
+  "Angel Olsen", "Waxahatchee", "Lucy Dacus", "Snail Mail", "Soccer Mommy",
+  "Wednesday", "MJ Lenderman", "Alex G", "King Gizzard & the Lizard Wizard", "Khruangbin",
+  "Vulfpeck", "Thundercat", "Anderson .Paak", "Leon Bridges", "Michael Kiwanuka",
+  "Glass Animals", "alt-J", "Two Door Cinema Club", "Portugal. The Man", "Foster the People",
+  "Odesza", "Rüfüs Du Sol", "Bonobo", "Four Tet", "Caribou",
+  "Fred again..", "Disclosure", "Flume", "Kaytranada", "Jamie xx",
+  "The National", "Interpol", "Wilco", "Spoon", "The War on Drugs",
+  "Father John Misty", "Kurt Vile", "Cage the Elephant", "Modest Mouse", "Death Cab for Cutie",
+  "Turnstile", "Idles", "Fontaines D.C.", "black midi", "Black Country, New Road",
+  "Wet Leg", "Beabadoobee", "Clairo", "girl in red", "Faye Webster",
+  "Remi Wolf", "Still Woozy", "Dominic Fike", "Omar Apollo", "Steve Lacy",
+];
+
+let placeholderCycleTimer = null;
+let placeholderPool = [];
+let currentPlaceholderArtist = "";
+let placeholderAnimationTimer = null;
+let savedArtistScrollFrame = null;
+let savedArtistScrollDirection = 1;
+let savedArtistScrollTimestamp = null;
+let savedArtistScrollPointerDown = false;
+let savedArtistScrollPosition = null;
+
+function nextPlaceholderArtist() {
+  if (placeholderPool.length === 0) {
+    // Refill and shuffle so we cycle through the full list before repeating.
+    placeholderPool = POPULAR_ARTISTS.slice();
+    for (let i = placeholderPool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [placeholderPool[i], placeholderPool[j]] = [placeholderPool[j], placeholderPool[i]];
+    }
+  }
+  return placeholderPool.pop();
+}
+
+function startPlaceholderCycle() {
+  const input = el("artist-url");
+  if (!input || !el("artist-placeholder")) return;
+  currentPlaceholderArtist = SITE_TITLE;
+  setStaticPlaceholder(SITE_TITLE);
+  syncRollingPlaceholder();
+  const apply = () => {
+    renderRollingPlaceholder(nextPlaceholderArtist());
+  };
+  window.clearInterval(placeholderCycleTimer);
+  placeholderCycleTimer = window.setTimeout(() => {
+    apply();
+    placeholderCycleTimer = window.setInterval(apply, 3000);
+  }, 3000);
+}
+
+function placeholderLine(artist, className) {
+  const span = document.createElement("span");
+  span.className = className;
+  span.textContent = formatArtistDisplay(artist);
+  return span;
+}
+
+function setStaticPlaceholder(artist) {
+  const displayName = formatArtistDisplay(artist);
+  el("artist-placeholder").textContent = displayName;
+}
+
+function measureArtistLine(text) {
+  const input = el("artist-url");
+  if (!input || typeof window === "undefined") return text.length * 40;
+  const styles = window.getComputedStyle(input);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) return text.length * Number.parseFloat(styles.fontSize);
+  context.font = `${styles.fontStyle} ${styles.fontWeight} ${styles.fontSize} ${styles.fontFamily}`;
+  const renderedText = text.toUpperCase();
+  const letterSpacing = Number.parseFloat(styles.letterSpacing) || 0;
+  return context.measureText(renderedText).width + Math.max(0, renderedText.length - 1) * letterSpacing;
+}
+
+function formatArtistDisplay(artist) {
+  // Newlines are display-only wraps inserted below. Preserve every typed
+  // space here; artistQueryValue() normalizes whitespace before searching.
+  const name = artist.replace(/\n/g, "");
+  if (!mobileQuery.matches || !name) return name;
+
+  const slot = document.querySelector(".brand-search-line");
+  const availableWidth = slot?.clientWidth || Math.max(1, window.innerWidth - 40);
+  const lines = [];
+  let remaining = name;
+
+  while (remaining && measureArtistLine(remaining) > availableWidth) {
+    let fit = 1;
+    while (
+      fit < remaining.length &&
+      measureArtistLine(remaining.slice(0, fit + 1)) <= availableWidth
+    ) {
+      fit += 1;
+    }
+
+    const spaceBreak = remaining.lastIndexOf(" ", fit);
+    if (spaceBreak > 0) {
+      // Keep the original space before the visual line break so the search
+      // query is reconstructed exactly when newlines are removed.
+      lines.push(remaining.slice(0, spaceBreak + 1));
+      remaining = remaining.slice(spaceBreak + 1);
+    } else {
+      lines.push(remaining.slice(0, fit));
+      remaining = remaining.slice(fit);
+    }
+  }
+
+  if (remaining) lines.push(remaining);
+  return lines.join("\n");
+}
+
+function artistQueryValue() {
+  return el("artist-url").value.replace(/\n/g, "").trim().replace(/\s+/g, " ");
+}
+
+function setArtistQueryValue(value) {
+  el("artist-url").value = formatArtistDisplay(value);
+  syncArtistEditorState();
+}
+
+function syncArtistEditorState() {
+  const input = el("artist-url");
+  const brand = document.querySelector(".brand");
+  const lineCount = Math.max(1, input.value.split("\n").length);
+  const reservedLines = mobileQuery.matches ? 2 : 1;
+  brand?.style.setProperty("--artist-lines", String(lineCount));
+  brand?.style.setProperty(
+    "--artist-overflow-space",
+    `${(Math.max(0, lineCount - reservedLines) * 0.82).toFixed(2)}em`,
+  );
+  brand?.classList.toggle("is-empty-editor", !input.value);
+  brand?.classList.toggle("has-multiline-query", input.value.includes("\n"));
+}
+
+function syncRollingPlaceholder() {
+  const brand = document.querySelector(".brand");
+  el("artist-placeholder")?.classList.toggle(
+    "is-hidden",
+    Boolean(el("artist-url")?.value) || brand?.classList.contains("is-editing"),
+  );
+}
+
+function useActivePlaceholderArtist() {
+  const input = el("artist-url");
+  if (
+    !input ||
+    input.value.trim() ||
+    !currentPlaceholderArtist ||
+    currentPlaceholderArtist === SITE_TITLE
+  ) return;
+  setArtistQueryValue(currentPlaceholderArtist);
+  syncRollingPlaceholder();
+  updateSubmitLabel();
+}
+
+function renderRollingPlaceholder(nextArtist) {
+  const placeholder = el("artist-placeholder");
+  const input = el("artist-url");
+  if (!placeholder || !input || !nextArtist) return;
+
+  window.clearTimeout(placeholderAnimationTimer);
+
+  if (!currentPlaceholderArtist || input.value || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    currentPlaceholderArtist = nextArtist;
+    setStaticPlaceholder(nextArtist);
+    syncRollingPlaceholder();
+    return;
+  }
+
+  const previousArtist = currentPlaceholderArtist;
+  currentPlaceholderArtist = nextArtist;
+  placeholder.replaceChildren(
+    placeholderLine(previousArtist, "rolling-line rolling-line-out"),
+    placeholderLine(nextArtist, "rolling-line rolling-line-in"),
+  );
+  syncRollingPlaceholder();
+  placeholderAnimationTimer = window.setTimeout(() => {
+    setStaticPlaceholder(currentPlaceholderArtist);
+  }, 680);
+}
+
+const BROWSER_CACHE_VERSION = "v2";
 const BROWSER_CACHE_MAX_ENTRIES = 50;
 const BROWSER_CACHE_TTL = {
   artistSearch: 24 * 60 * 60 * 1000,
@@ -84,6 +284,13 @@ const artistSearchCache = new Map();
 const artistResolutionCache = new Map();
 
 const mobileQuery = window.matchMedia("(max-width: 900px)");
+mobileQuery.addEventListener("change", () => {
+  if (el("artist-url")?.value) {
+    setArtistQueryValue(artistQueryValue());
+  } else if (currentPlaceholderArtist) {
+    setStaticPlaceholder(currentPlaceholderArtist);
+  }
+});
 
 const el = (id) => document.getElementById(id);
 
@@ -326,8 +533,8 @@ function renderExternalTourLink() {
   if (controls) controls.hidden = true;
   cards.innerHTML = "";
 
-  const summary = el("results-summary");
-  summary.textContent = `Shows available on ${providerName} — open the site for dates and tickets`;
+  // No summary line here — the callout below already explains this state.
+  el("results-summary").textContent = "";
   el("sheet-peek-label").textContent = "Tour link";
 }
 
@@ -440,7 +647,7 @@ function renderMarkers() {
     if (concert.lat == null || concert.lng == null) continue;
     const marker = L.marker([concert.lat, concert.lng], {
       icon: makePin(concertColor(concert)),
-    }).bindPopup(popupHtml(concert));
+    }).bindPopup(popupHtml(concert), { autoPanPadding: POPUP_EDGE_PADDING });
     marker.on("click", () => select(id, { pan: false, fromMarker: true }));
     markerLayer.addLayer(marker);
     markersById.set(id, marker);
@@ -462,21 +669,25 @@ function sheetDetentHeights() {
   };
 }
 
-function mapFitOptions() {
+function mapFitOptions({ selectedRoute = false } = {}) {
+  const edgePadding = selectedRoute ? SELECTED_ROUTE_EDGE_PADDING : 0;
   if (!document.body.classList.contains("has-results")) {
-    return { padding: [50, 50], maxZoom: 10 };
+    return { padding: [50 + edgePadding, 50 + edgePadding], maxZoom: 10 };
   }
   if (mobileQuery.matches) {
     const sheetHeight = sheetDetentHeights()[state.sheetPosition];
     return {
-      paddingTopLeft: [42, 56],
-      paddingBottomRight: [42, state.sheetPosition === "list" ? 56 : sheetHeight + 34],
+      paddingTopLeft: [42 + edgePadding, 56 + edgePadding],
+      paddingBottomRight: [
+        42 + edgePadding,
+        (state.sheetPosition === "list" ? 56 : sheetHeight + 34) + edgePadding,
+      ],
       maxZoom: 10,
     };
   }
   return {
-    paddingTopLeft: [460, 58],
-    paddingBottomRight: [58, 58],
+    paddingTopLeft: [460 + edgePadding, 58 + edgePadding],
+    paddingBottomRight: [58 + edgePadding, 58 + edgePadding],
     maxZoom: 10,
   };
 }
@@ -649,7 +860,7 @@ function zoomToRoute(destination) {
       [state.start.lat, state.start.lng],
       [destination.lat, destination.lng],
     ]);
-    map.fitBounds(bounds, mapFitOptions());
+    map.fitBounds(bounds, mapFitOptions({ selectedRoute: true }));
   } else {
     map.panTo(destination);
   }
@@ -720,7 +931,8 @@ async function readErrorDetail(response) {
 /* ---------- search ---------- */
 
 async function search() {
-  const artistQuery = el("artist-url").value.trim();
+  useActivePlaceholderArtist();
+  const artistQuery = artistQueryValue();
   const startLocation = el("start-location").value.trim();
   if (!artistQuery || state.loading) return;
 
@@ -755,7 +967,7 @@ async function search() {
 
 async function searchArtistCandidates(artistQuery, { showEmptyError = false } = {}) {
   const query = artistQuery.trim();
-  if (query.length < 2 || isLikelyUrl(query)) {
+  if (!query || isLikelyUrl(query)) {
     hideArtistCandidates();
     return [];
   }
@@ -777,7 +989,7 @@ async function searchArtistCandidates(artistQuery, { showEmptyError = false } = 
     }
     artistSearchCache.set(cacheKey, artists);
 
-    if (requestVersion !== artistSearchVersion || el("artist-url").value.trim() !== query) return [];
+    if (requestVersion !== artistSearchVersion || artistQueryValue() !== query) return [];
     state.artistCandidates = artists;
     renderArtistCandidates();
     if (artists[0]) prefetchArtistResolution(artists[0]);
@@ -949,7 +1161,8 @@ async function chooseArtistCandidate(index) {
   const artist = state.artistCandidates[index];
   if (!artist) return;
   state.selectedCandidate = artist;
-  el("artist-url").value = artist.name;
+  setArtistQueryValue(artist.name);
+  syncRollingPlaceholder();
   hideArtistCandidates();
   updateSubmitLabel();
 
@@ -979,10 +1192,12 @@ function setActiveCandidate(index) {
 
 function setArtistSearchPending(pending) {
   document.querySelector(".artist-field").classList.toggle("is-searching", pending);
-  if (pending) {
-    el("artist-hint").textContent = ARTIST_SEARCH_LOADING_MESSAGES[0];
-  } else {
-    el("artist-hint").textContent = "Start typing an artist. You can also paste a tour page URL.";
+  document.body.classList.toggle("artist-searching", pending);
+  const hint = el("artist-hint");
+  if (hint) {
+    hint.textContent = pending
+      ? ARTIST_SEARCH_LOADING_MESSAGES[0]
+      : "Start typing an artist. You can also paste a tour page URL.";
   }
 }
 
@@ -991,7 +1206,7 @@ function setSubmitLabel(label) {
 }
 
 function updateSubmitLabel() {
-  const query = el("artist-url").value.trim();
+  const query = artistQueryValue();
   if (state.selectedCandidate?.name === query || isLikelyUrl(query)) {
     setSubmitLabel("Plot the tour");
   } else {
@@ -1030,7 +1245,7 @@ function renderArtistHeader() {
   const avatar = el("artist-avatar");
   const name = state.artist?.name;
 
-  el("artist-name").textContent = name ?? hostnameOf(el("artist-url").value);
+  el("artist-name").textContent = name ?? hostnameOf(artistQueryValue());
   const location = el("start-location").value.trim();
   el("results-location").textContent = location ? `From ${location}` : "Upcoming route";
   header.hidden = false;
@@ -1053,6 +1268,58 @@ function hostnameOf(url) {
 
 /* ---------- saved artists ---------- */
 
+function savedArtistAutoScrollIsPaused(section) {
+  return (window.matchMedia("(hover: hover)").matches && section.matches(":hover")) ||
+    section.contains(document.activeElement) ||
+    savedArtistScrollPointerDown;
+}
+
+function animateSavedArtists(timestamp) {
+  const section = el("saved-section");
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!savedArtistAutoScrollIsPaused(section) && !reducedMotion && !section.hidden) {
+    const elapsed = savedArtistScrollTimestamp == null
+      ? 0
+      : Math.min(timestamp - savedArtistScrollTimestamp, 100);
+    const maxScroll = section.scrollWidth - section.clientWidth;
+    if (maxScroll > 0) {
+      if (
+        savedArtistScrollPosition == null ||
+        Math.abs(section.scrollLeft - savedArtistScrollPosition) > 2
+      ) {
+        savedArtistScrollPosition = section.scrollLeft;
+      }
+      savedArtistScrollPosition +=
+        savedArtistScrollDirection * SAVED_ARTIST_SCROLL_SPEED * elapsed / 1000;
+      savedArtistScrollPosition = Math.max(0, Math.min(maxScroll, savedArtistScrollPosition));
+      section.scrollLeft = savedArtistScrollPosition;
+      if (savedArtistScrollPosition >= maxScroll - 1) savedArtistScrollDirection = -1;
+      if (savedArtistScrollPosition <= 1) savedArtistScrollDirection = 1;
+    }
+  } else {
+    savedArtistScrollPosition = section.scrollLeft;
+  }
+  savedArtistScrollTimestamp = timestamp;
+  savedArtistScrollFrame = window.requestAnimationFrame(animateSavedArtists);
+}
+
+function startSavedArtistAutoScroll() {
+  const section = el("saved-section");
+  if (!section || savedArtistScrollFrame != null) return;
+
+  section.addEventListener("pointerdown", () => { savedArtistScrollPointerDown = true; });
+  section.addEventListener("pointerup", () => {
+    savedArtistScrollPointerDown = false;
+    savedArtistScrollPosition = section.scrollLeft;
+  });
+  section.addEventListener("pointercancel", () => {
+    savedArtistScrollPointerDown = false;
+    savedArtistScrollPosition = section.scrollLeft;
+  });
+
+  savedArtistScrollFrame = window.requestAnimationFrame(animateSavedArtists);
+}
+
 async function loadSavedArtists() {
   try {
     const response = await fetch("/api/artists");
@@ -1070,7 +1337,7 @@ function renderSavedArtists(artists) {
   section.hidden = artists.length === 0;
   list.innerHTML = "";
 
-  for (const artist of artists.slice(0, 6)) {
+  for (const artist of artists) {
     const li = document.createElement("li");
     li.className = "saved-chip";
     li.title = artist.url;
@@ -1100,7 +1367,8 @@ function renderSavedArtists(artists) {
 function selectSavedArtist(artist) {
   state.selectedCandidate = null;
   state.selectedArtistUrl = artist.url;
-  el("artist-url").value = artist.name;
+  setArtistQueryValue(artist.name);
+  syncRollingPlaceholder();
   hideArtistCandidates();
   updateSubmitLabel();
   const startLocation = el("start-location").value.trim();
@@ -1171,7 +1439,7 @@ function applyInitialArtistQuery() {
   const params = new URLSearchParams(window.location.search);
   const artistQuery = params.get("artist")?.trim();
   if (artistQuery) {
-    el("artist-url").value = artistQuery;
+    setArtistQueryValue(artistQuery);
   }
 }
 
@@ -1328,30 +1596,56 @@ el("search-form").addEventListener("submit", (event) => {
   event.preventDefault();
   search();
 });
+el("submit").addEventListener("click", useActivePlaceholderArtist);
+el("artist-url").addEventListener("focus", () => {
+  document.querySelector(".brand")?.classList.add("is-editing");
+  syncArtistEditorState();
+  syncRollingPlaceholder();
+});
+el("artist-url").addEventListener("blur", () => {
+  document.querySelector(".brand")?.classList.remove("is-editing");
+  syncArtistEditorState();
+  syncRollingPlaceholder();
+});
 el("artist-url").addEventListener("input", () => {
+  const input = el("artist-url");
+  const rawQuery = input.value.replace(/\n/g, "");
+  const formattedQuery = formatArtistDisplay(rawQuery);
+  if (input.value !== formattedQuery) {
+    input.value = formattedQuery;
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+  syncArtistEditorState();
   clearTimeout(artistSearchTimer);
   state.selectedCandidate = null;
   state.selectedArtistUrl = null;
   state.artistCandidates = [];
   hideArtistCandidates();
   updateSubmitLabel();
+  syncRollingPlaceholder();
   el("error").hidden = true;
-  const query = el("artist-url").value.trim();
-  if (query.length >= 2 && !isLikelyUrl(query)) {
+  const query = artistQueryValue();
+  if (query && !isLikelyUrl(query)) {
     artistSearchTimer = setTimeout(() => searchArtistCandidates(query), 450);
   }
 });
 el("artist-url").addEventListener("keydown", (event) => {
-  if (el("candidate-section").hidden) return;
-  if (event.key === "ArrowDown") {
+  const candidatesHidden = el("candidate-section").hidden;
+  if (event.key === "Enter") {
+    event.preventDefault();
+    if (!candidatesHidden && activeCandidateIndex >= 0) {
+      chooseArtistCandidate(activeCandidateIndex);
+    } else {
+      search();
+    }
+  } else if (candidatesHidden) {
+    return;
+  } else if (event.key === "ArrowDown") {
     event.preventDefault();
     setActiveCandidate(activeCandidateIndex + 1);
   } else if (event.key === "ArrowUp") {
     event.preventDefault();
     setActiveCandidate(activeCandidateIndex - 1);
-  } else if (event.key === "Enter" && activeCandidateIndex >= 0) {
-    event.preventDefault();
-    chooseArtistCandidate(activeCandidateIndex);
   } else if (event.key === "Escape") {
     hideArtistCandidates();
   }
@@ -1368,5 +1662,7 @@ document.addEventListener("click", (event) => {
   if (!event.target.closest(".artist-field")) hideArtistCandidates();
 });
 applyInitialArtistQuery();
+startPlaceholderCycle();
+startSavedArtistAutoScroll();
 loadDefaults();
 loadSavedArtists();

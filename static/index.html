@@ -21,48 +21,47 @@
     href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=17" />
 </head>
 <body data-view="list">
   <div class="layout">
     <aside class="sidebar">
-      <header class="brand">
-        <a class="brand-lockup" href="/" aria-label="Concert Placer home">
-          <span>Concert</span>
-          <span>Placer<span class="brand-mark">↗</span></span>
-        </a>
-        <p class="tagline">Put the tour on your map.</p>
-      </header>
-
-      <section class="search-panel" aria-labelledby="search-heading">
-        <div class="panel-heading">
-          <span class="panel-number" aria-hidden="true">01</span>
-          <div>
-            <h1 id="search-heading">Find the next show.</h1>
-          </div>
-        </div>
-
-        <form id="search-form" autocomplete="off">
+      <form id="search-form" autocomplete="off">
+        <header class="brand">
           <div class="field artist-field">
-            <label class="field-label" for="artist-url">Who do you want to see?</label>
-            <span class="input-shell input-artist">
-              <input
-                id="artist-url"
-                name="artist_query"
-                type="text"
-                placeholder="Japanese Breakfast"
-                aria-describedby="artist-hint"
-                aria-autocomplete="list"
-                aria-controls="candidate-list"
-                aria-expanded="false"
-                required
-              />
+            <label class="sr-only" for="artist-url">Who do you want to see?</label>
+            <span class="brand-lockup">
+              <span class="input-shell input-artist brand-search-line">
+                <textarea
+                  id="artist-url"
+                  class="brand-search-input"
+                  name="artist_query"
+                  placeholder="Japanese Breakfast"
+                  aria-autocomplete="list"
+                  aria-controls="candidate-list"
+                  aria-expanded="false"
+                  rows="1"
+                  wrap="soft"
+                  spellcheck="false"
+                  required
+                ></textarea>
+                <span class="brand-block-caret" aria-hidden="true"></span>
+                <span id="artist-placeholder" class="rolling-placeholder" aria-hidden="true">
+                  Concert
+                </span>
+              </span>
+              <span class="brand-fixed-line">
+                Finder<span class="brand-mark">↗</span>
+              </span>
             </span>
             <section id="candidate-section" class="candidate-popover" aria-label="Artist matches" hidden>
               <ul id="candidate-list" class="candidate-list" role="listbox"></ul>
             </section>
-            <span id="artist-hint" class="field-hint">Start typing an artist. You can also paste a tour page URL.</span>
           </div>
+          <p class="tagline">Put the tour on your map.</p>
+        </header>
+
+        <section class="search-panel" aria-label="Find the next show">
           <div class="location-control">
             <button
               id="location-toggle"
@@ -95,14 +94,10 @@
           </button>
           <div id="status" class="status search-status" role="status" aria-live="polite" hidden></div>
           <div id="error" class="error-banner search-error" role="alert" hidden></div>
-        </form>
-      </section>
+        </section>
+      </form>
 
-      <section id="saved-section" class="saved utility-section" hidden>
-        <div class="utility-heading">
-          <h2 class="section-title">Recent searches</h2>
-          <span class="eyebrow">Pick up where you left off</span>
-        </div>
+      <section id="saved-section" class="saved" aria-label="Recent searches" hidden>
         <ul id="saved-list" class="saved-list"></ul>
       </section>
 
@@ -255,6 +250,6 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=11"></script>
 </body>
 </html>
