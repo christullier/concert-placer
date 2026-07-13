@@ -2,6 +2,7 @@
 
 const COLORS = {
   drivable: "#3348ff",
+  estimated: "#7655c9",
   soldOut: "#ff6044",
   unreachable: "#c83328",
   start: "#d8ff3e",
@@ -26,7 +27,7 @@ const ARTIST_RESOLVE_LOADING_MESSAGES = [
   "Geocoding venues…",
 ];
 
-const ARTIST_UNAVAILABLE_MESSAGE = "Sorry, this one seems unavailable. Try another artist.";
+const ARTIST_UNAVAILABLE_MESSAGE = "Unavailable, try another artist.";
 const SELECTED_ROUTE_EDGE_PADDING = 32;
 const POPUP_EDGE_PADDING = [24, 24];
 const SITE_TITLE = "Concert";
@@ -234,6 +235,16 @@ function setArtistQueryValue(value) {
   syncArtistEditorState();
 }
 
+function rewrapArtistQueryAfterFontsLoad() {
+  if (!document.fonts?.ready) return;
+  document.fonts.ready.then(() => {
+    const value = artistQueryValue();
+    if (!value) return;
+    setArtistQueryValue(value);
+    syncRollingPlaceholder();
+  });
+}
+
 function syncArtistEditorState() {
   const input = el("artist-url");
   const brand = document.querySelector(".brand");
@@ -269,7 +280,7 @@ function useActivePlaceholderArtist() {
   updateSubmitLabel();
 }
 
-const BROWSER_CACHE_VERSION = "v3";
+const BROWSER_CACHE_VERSION = "v4";
 const BROWSER_CACHE_MAX_ENTRIES = 50;
 const BROWSER_CACHE_TTL = {
   artistSearch: 24 * 60 * 60 * 1000,
@@ -430,6 +441,7 @@ function addLegend() {
     const div = L.DomUtil.create("div", "legend");
     div.innerHTML = [
       ["drivable", "Drivable"],
+      ["estimated", "Estimated"],
       ["soldOut", "Sold out"],
       ["unreachable", "Unreachable"],
       ["start", "Start"],
@@ -447,6 +459,7 @@ function addLegend() {
 function concertColor(concert) {
   if (concert.is_sold_out) return COLORS.soldOut;
   if (!concert.is_drivable) return COLORS.unreachable;
+  if (concert.distance_is_estimated) return COLORS.estimated;
   return COLORS.drivable;
 }
 
@@ -561,6 +574,15 @@ function statusChip(concert) {
   return "";
 }
 
+function distanceBadgeHtml(concert) {
+  if (concert.distance == null) return "";
+  const estimated = Boolean(concert.distance_is_estimated);
+  const className = estimated ? "badge-distance estimated" : "badge-distance";
+  const title = estimated ? ' title="Estimated road distance"' : "";
+  const prefix = estimated ? "≈" : "";
+  return `<span class="${className}"${title}>${prefix}${Math.round(concert.distance)} mi</span>`;
+}
+
 function isSafeTicketUrl(url) {
   return typeof url === "string" && /^https?:\/\//i.test(url);
 }
@@ -570,54 +592,51 @@ function ticketLinkHtml(concert, className = "card-tickets") {
   return `<a class="${className}" href="${escapeHtml(concert.ticket_url)}" target="_blank" rel="noopener noreferrer">Tickets</a>`;
 }
 
-// Both statuses render the same shape — a callout and an outbound link
-// instead of cards — but they mean different things, so the copy differs.
-function isLinkOnlyResults() {
-  return state.parseStatus === "link_only" || state.parseStatus === "no_shows";
+// Empty results are not mappable even when an older/provider-specific response
+// labels the parse as "full", so keep every zero-show result on the search surface.
+function hasTourFallback() {
+  return (
+    state.concerts.length === 0 ||
+    state.parseStatus === "link_only" ||
+    state.parseStatus === "no_shows"
+  );
 }
 
 function render() {
-  renderExternalTourLink();
   renderCards();
   renderMarkers();
 }
 
-function renderExternalTourLink() {
+function showTourFallback() {
   const block = el("external-tour-link");
   const copy = el("external-tour-copy");
   const cta = el("external-tour-cta");
-  const controls = document.querySelector(".results-controls");
-  const cards = el("cards");
-
-  if (!isLinkOnlyResults()) {
-    block.hidden = true;
-    if (controls) controls.hidden = false;
-    return;
-  }
 
   const providerName = formatProviderName(state.provider);
   const artistName = state.artist?.name;
-  const noShows = state.parseStatus === "no_shows";
+  const noShows = state.parseStatus !== "link_only" && state.concerts.length === 0;
+  const externalUrl = isSafeTicketUrl(state.externalUrl) ? state.externalUrl : null;
 
   copy.textContent = noShows
-    ? `${artistName || "This artist"} has no upcoming shows listed on ${providerName} right now.`
-    : `Shows are listed on ${providerName}, but this page doesn't expose dates we can map.`;
+    ? `${artistName || "This artist"} has no upcoming shows right now.`
+    : `We couldn’t load ${artistName ? `${artistName}’s` : "this artist’s"} tour dates here. See the latest shows on ${providerName}.`;
   cta.textContent = noShows ? `Check ${providerName}` : `View shows on ${providerName}`;
-  cta.href = state.externalUrl ?? "#";
+  cta.hidden = !externalUrl;
+  if (externalUrl) cta.href = externalUrl;
+  else cta.removeAttribute("href");
   block.hidden = false;
-  if (controls) controls.hidden = true;
-  cards.innerHTML = "";
-
-  // No summary line here — the callout below already explains this state.
-  el("results-summary").textContent = "";
-  el("sheet-peek-label").textContent = noShows ? "No shows" : "Tour link";
+  el("error").hidden = true;
+  el("results-section").hidden = true;
+  el("map-back").hidden = true;
+  el("map-share").hidden = true;
+  setLandingInert(false);
+  document.body.classList.remove("has-results");
+  delete document.body.dataset.sheet;
+  document.body.dataset.view = "list";
 }
 
 function renderCards() {
   const cards = el("cards");
-  if (isLinkOnlyResults()) {
-    return;
-  }
   cards.innerHTML = "";
 
   const visibleConcerts = sortedConcerts();
@@ -627,10 +646,7 @@ function renderCards() {
     li.dataset.id = id;
     li.tabIndex = 0;
 
-    const distance =
-      concert.distance != null
-        ? `<span class="badge-distance">${Math.round(concert.distance)} mi</span>`
-        : "";
+    const distance = distanceBadgeHtml(concert);
     const error =
       !concert.is_drivable && concert.navigation_error
         ? `<div class="card-error">${escapeHtml(concert.navigation_error)}</div>`
@@ -710,12 +726,6 @@ function renderMarkers() {
     }).bindPopup(`<strong>Start</strong><br>${escapeHtml(state.start.address ?? "")}`);
     markerLayer.addLayer(startMarker);
     bounds.push([state.start.lat, state.start.lng]);
-  }
-
-  if (isLinkOnlyResults()) {
-    lastBounds = bounds.length ? bounds : null;
-    if (lastBounds) fitMapToResults();
-    return;
   }
 
   for (const { concert, id } of sortedConcerts()) {
@@ -894,7 +904,13 @@ function popupHtml(concert) {
     escapeHtml(concert.city),
     formatDate(concert.start_date),
   ];
-  if (concert.distance != null) lines.push(`${Math.round(concert.distance)} mi drive`);
+  if (concert.distance != null) {
+    lines.push(
+      concert.distance_is_estimated
+        ? `≈${Math.round(concert.distance)} mi estimated`
+        : `${Math.round(concert.distance)} mi drive`
+    );
+  }
   if (concert.is_sold_out) lines.push("Sold out");
   else if (!concert.is_drivable) lines.push("Unreachable by road");
   const tickets = ticketLinkHtml(concert, "popup-tickets");
@@ -959,6 +975,7 @@ function setLoading(loading, messages = TOUR_LOADING_MESSAGES) {
 
   if (loading) {
     el("error").hidden = true;
+    el("external-tour-link").hidden = true;
     el("results-section").hidden = true;
     el("artist-header").hidden = true;
     el("cards").innerHTML = "";
@@ -983,6 +1000,7 @@ function showError(message) {
   const banner = el("error");
   banner.textContent = message;
   banner.hidden = false;
+  el("external-tour-link").hidden = true;
   el("results-section").hidden = true;
   hideArtistCandidates();
   setLandingInert(false);
@@ -1093,7 +1111,7 @@ function prefetchArtistResolution(artist) {
   const promise = fetch("/api/resolve-artist", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mbid: artist.mbid }),
+    body: JSON.stringify({ mbid: artist.mbid, artist_name: artist.name }),
   }).then(async (response) => {
     if (!response.ok) throw new Error(await readErrorDetail(response));
     const resolved = await response.json();
@@ -1198,6 +1216,14 @@ function displayConcertResults(data, { shared = false } = {}) {
   state.selectedId = null;
 
   el("candidate-section").hidden = true;
+  if (hasTourFallback()) {
+    showTourFallback();
+    if (!shared) loadSavedArtists();
+    return;
+  }
+
+  el("external-tour-link").hidden = true;
+  el("error").hidden = true;
   el("results-section").hidden = false;
   renderArtistHeader();
   renderShareControl();
@@ -1583,6 +1609,7 @@ function applyInitialArtistQuery() {
   const artistQuery = params.get("artist")?.trim();
   if (artistQuery) {
     setArtistQueryValue(artistQuery);
+    rewrapArtistQueryAfterFontsLoad();
   }
 }
 
@@ -1590,6 +1617,8 @@ function displayEmbeddedSharedSearch(payload) {
   state.selectedCandidate = null;
   state.selectedArtistUrl = payload.artist_url;
   setArtistQueryValue(payload.result.artist?.name ?? payload.artist_url);
+  syncRollingPlaceholder();
+  rewrapArtistQueryAfterFontsLoad();
   el("start-location").value = payload.start_location;
   syncLocationControl({ collapse: true });
   displayConcertResults(payload.result, { shared: true });
@@ -1777,6 +1806,7 @@ el("artist-url").addEventListener("input", () => {
   updateSubmitLabel();
   syncRollingPlaceholder();
   el("error").hidden = true;
+  el("external-tour-link").hidden = true;
   const query = artistQueryValue();
   if (query && !isLikelyUrl(query)) {
     artistSearchTimer = setTimeout(() => searchArtistCandidates(query), 450);

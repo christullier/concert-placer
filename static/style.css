@@ -624,6 +624,7 @@ body.search-loading .status.search-status {
 .saved-list {
   display: flex;
   flex-wrap: nowrap;
+  justify-content: center;
   gap: 8px;
   width: max-content;
   min-width: 100%;
@@ -1067,33 +1068,36 @@ body.search-loading .status.search-status {
 
 .external-tour-link {
   display: grid;
-  grid-template-columns: 40px 1fr;
-  gap: 12px 14px;
-  padding: 18px;
-  background: var(--lime);
-  border: 1.5px solid var(--ink);
-  box-shadow: var(--shadow-hard);
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px;
+  background: var(--paper-light);
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
 }
 
 .external-stamp {
-  grid-row: span 2;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  background: var(--coral);
-  border: 1px solid var(--ink);
-  font-size: 21px;
+  width: 38px;
+  height: 38px;
+  background: var(--ink);
+  border: 2px solid var(--ink);
+  color: var(--paper-light);
+  font-size: 20px;
+  font-weight: 700;
 }
 
 .external-tour-copy {
+  align-self: center;
   margin: 0;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .external-tour-cta {
-  grid-column: 2;
+  grid-column: 1 / -1;
   width: 100%;
   min-height: 42px;
   padding: 10px 12px;
@@ -1194,6 +1198,11 @@ body.search-loading .status.search-status {
   font-weight: 700;
   letter-spacing: 0.05em;
   white-space: nowrap;
+}
+
+.badge-distance.estimated {
+  border-style: dashed;
+  color: #7655c9;
 }
 
 .card-city {

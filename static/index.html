@@ -21,7 +21,7 @@
     href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css?v=24" />
+  <link rel="stylesheet" href="/static/style.css?v=28" />
 </head>
 <body data-view="list">
   <div class="layout">
@@ -94,6 +94,16 @@
           </button>
           <div id="status" class="status search-status" role="status" aria-live="polite" hidden></div>
           <div id="error" class="error-banner search-error" role="alert" hidden></div>
+          <div id="external-tour-link" class="external-tour-link" role="alert" hidden>
+            <span class="external-stamp" aria-hidden="true">↗</span>
+            <p id="external-tour-copy" class="external-tour-copy"></p>
+            <a
+              id="external-tour-cta"
+              class="btn-primary external-tour-cta"
+              target="_blank"
+              rel="noopener noreferrer"
+            ></a>
+          </div>
         </section>
       </form>
 
@@ -215,16 +225,6 @@
             </div>
           </div>
 
-          <div id="external-tour-link" class="external-tour-link" hidden>
-            <span class="external-stamp" aria-hidden="true">↗</span>
-            <p id="external-tour-copy" class="external-tour-copy"></p>
-            <a
-              id="external-tour-cta"
-              class="btn-primary external-tour-cta"
-              target="_blank"
-              rel="noopener noreferrer"
-            ></a>
-          </div>
           <ol id="cards" class="cards"></ol>
         </div>
       </section>
@@ -266,6 +266,6 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
-  <script src="/static/app.js?v=13"></script>
+  <script src="/static/app.js?v=16"></script>
 </body>
 </html>
