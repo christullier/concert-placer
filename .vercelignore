@@ -1,0 +1,13 @@
+.env
+.idea/
+.DS_Store
+CLAUDE.md
+LOG.md
+PROJECT.md
+idea.txt
+saved_artists.json
+env/
+__pycache__/
+fixtures/
+scripts/
+test_tour_fixtures.py
