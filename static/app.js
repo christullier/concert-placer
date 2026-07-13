@@ -62,7 +62,16 @@ const POPULAR_ARTISTS = [
 let placeholderCycleTimer = null;
 let placeholderPool = [];
 let currentPlaceholderArtist = "";
-let placeholderAnimationTimer = null;
+let typedPlaceholderLength = 0;
+
+// Typewriter cadence for the cycling placeholder (ms).
+const TYPE_CHAR_DELAY = 62;
+const TYPE_CHAR_JITTER = 30;
+const TYPE_WORD_PAUSE = 90;
+const ERASE_CHAR_DELAY = 26;
+const TYPE_HOLD = 1700;
+const TYPE_HOLD_FIRST = 2600;
+const TYPE_RESTART_PAUSE = 280;
 let savedArtistScrollFrame = null;
 let savedArtistScrollDirection = 1;
 let savedArtistScrollTimestamp = null;
@@ -81,27 +90,85 @@ function nextPlaceholderArtist() {
   return placeholderPool.pop();
 }
 
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 function startPlaceholderCycle() {
   const input = el("artist-url");
   if (!input || !el("artist-placeholder")) return;
-  currentPlaceholderArtist = SITE_TITLE;
-  setStaticPlaceholder(SITE_TITLE);
-  syncRollingPlaceholder();
-  const apply = () => {
-    renderRollingPlaceholder(nextPlaceholderArtist());
-  };
+  window.clearTimeout(placeholderCycleTimer);
   window.clearInterval(placeholderCycleTimer);
-  placeholderCycleTimer = window.setTimeout(() => {
-    apply();
-    placeholderCycleTimer = window.setInterval(apply, 3000);
-  }, 3000);
+  currentPlaceholderArtist = SITE_TITLE;
+
+  if (prefersReducedMotion()) {
+    setStaticPlaceholder(SITE_TITLE);
+    syncRollingPlaceholder();
+    placeholderCycleTimer = window.setInterval(() => {
+      currentPlaceholderArtist = nextPlaceholderArtist();
+      setStaticPlaceholder(currentPlaceholderArtist);
+      syncRollingPlaceholder();
+    }, 3000);
+    return;
+  }
+
+  // Start with the site title already "typed", then erase and type names.
+  typedPlaceholderLength = formatArtistDisplay(SITE_TITLE).length;
+  renderTypedPlaceholder();
+  syncRollingPlaceholder();
+  placeholderCycleTimer = window.setTimeout(erasePlaceholderStep, TYPE_HOLD_FIRST);
 }
 
-function placeholderLine(artist, className) {
-  const span = document.createElement("span");
-  span.className = className;
-  span.textContent = formatArtistDisplay(artist);
-  return span;
+function typePlaceholderStep() {
+  const target = formatArtistDisplay(currentPlaceholderArtist);
+  if (typedPlaceholderLength >= target.length) {
+    setPlaceholderCaretResting(true);
+    placeholderCycleTimer = window.setTimeout(erasePlaceholderStep, TYPE_HOLD);
+    return;
+  }
+
+  const typed = target[typedPlaceholderLength];
+  typedPlaceholderLength += 1;
+  renderTypedPlaceholder();
+
+  // Hands slow down at word boundaries; a flat interval reads as a machine.
+  const wordPause = typed === " " || typed === "\n" ? TYPE_WORD_PAUSE : 0;
+  const delay = TYPE_CHAR_DELAY + wordPause + Math.random() * TYPE_CHAR_JITTER;
+  placeholderCycleTimer = window.setTimeout(typePlaceholderStep, delay);
+}
+
+function erasePlaceholderStep() {
+  if (typedPlaceholderLength <= 0) {
+    currentPlaceholderArtist = nextPlaceholderArtist();
+    placeholderCycleTimer = window.setTimeout(typePlaceholderStep, TYPE_RESTART_PAUSE);
+    return;
+  }
+
+  setPlaceholderCaretResting(false);
+  typedPlaceholderLength -= 1;
+  renderTypedPlaceholder();
+  placeholderCycleTimer = window.setTimeout(erasePlaceholderStep, ERASE_CHAR_DELAY);
+}
+
+function renderTypedPlaceholder() {
+  const placeholder = el("artist-placeholder");
+  if (!placeholder) return;
+  const target = formatArtistDisplay(currentPlaceholderArtist);
+  typedPlaceholderLength = Math.min(typedPlaceholderLength, target.length);
+
+  const line = document.createElement("span");
+  line.className = "typed-line";
+  line.append(target.slice(0, typedPlaceholderLength));
+
+  const caret = document.createElement("span");
+  caret.className = "typed-caret";
+  line.append(caret);
+
+  placeholder.replaceChildren(line);
+}
+
+function setPlaceholderCaretResting(resting) {
+  el("artist-placeholder")?.classList.toggle("is-resting", resting);
 }
 
 function setStaticPlaceholder(artist) {
@@ -202,32 +269,6 @@ function useActivePlaceholderArtist() {
   updateSubmitLabel();
 }
 
-function renderRollingPlaceholder(nextArtist) {
-  const placeholder = el("artist-placeholder");
-  const input = el("artist-url");
-  if (!placeholder || !input || !nextArtist) return;
-
-  window.clearTimeout(placeholderAnimationTimer);
-
-  if (!currentPlaceholderArtist || input.value || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    currentPlaceholderArtist = nextArtist;
-    setStaticPlaceholder(nextArtist);
-    syncRollingPlaceholder();
-    return;
-  }
-
-  const previousArtist = currentPlaceholderArtist;
-  currentPlaceholderArtist = nextArtist;
-  placeholder.replaceChildren(
-    placeholderLine(previousArtist, "rolling-line rolling-line-out"),
-    placeholderLine(nextArtist, "rolling-line rolling-line-in"),
-  );
-  syncRollingPlaceholder();
-  placeholderAnimationTimer = window.setTimeout(() => {
-    setStaticPlaceholder(currentPlaceholderArtist);
-  }, 680);
-}
-
 const BROWSER_CACHE_VERSION = "v3";
 const BROWSER_CACHE_MAX_ENTRIES = 50;
 const BROWSER_CACHE_TTL = {
@@ -292,7 +333,9 @@ mobileQuery.addEventListener("change", () => {
   if (el("artist-url")?.value) {
     setArtistQueryValue(artistQueryValue());
   } else if (currentPlaceholderArtist) {
-    setStaticPlaceholder(currentPlaceholderArtist);
+    // Line breaks are re-measured for the new width; keep the typed prefix.
+    if (prefersReducedMotion()) setStaticPlaceholder(currentPlaceholderArtist);
+    else renderTypedPlaceholder();
   }
 });
 
@@ -527,8 +570,10 @@ function ticketLinkHtml(concert, className = "card-tickets") {
   return `<a class="${className}" href="${escapeHtml(concert.ticket_url)}" target="_blank" rel="noopener noreferrer">Tickets</a>`;
 }
 
+// Both statuses render the same shape — a callout and an outbound link
+// instead of cards — but they mean different things, so the copy differs.
 function isLinkOnlyResults() {
-  return state.parseStatus === "link_only";
+  return state.parseStatus === "link_only" || state.parseStatus === "no_shows";
 }
 
 function render() {
@@ -551,8 +596,13 @@ function renderExternalTourLink() {
   }
 
   const providerName = formatProviderName(state.provider);
-  copy.textContent = `Shows are listed on ${providerName}, but this page doesn't expose dates we can map.`;
-  cta.textContent = `View shows on ${providerName}`;
+  const artistName = state.artist?.name;
+  const noShows = state.parseStatus === "no_shows";
+
+  copy.textContent = noShows
+    ? `${artistName || "This artist"} has no upcoming shows listed on ${providerName} right now.`
+    : `Shows are listed on ${providerName}, but this page doesn't expose dates we can map.`;
+  cta.textContent = noShows ? `Check ${providerName}` : `View shows on ${providerName}`;
   cta.href = state.externalUrl ?? "#";
   block.hidden = false;
   if (controls) controls.hidden = true;
@@ -560,7 +610,7 @@ function renderExternalTourLink() {
 
   // No summary line here — the callout below already explains this state.
   el("results-summary").textContent = "";
-  el("sheet-peek-label").textContent = "Tour link";
+  el("sheet-peek-label").textContent = noShows ? "No shows" : "Tour link";
 }
 
 function renderCards() {
@@ -1077,6 +1127,7 @@ async function resolveArtistAndLookup(artist) {
     await lookupConcerts(resolved.artist_url, startLocation, {
       manageLoading: false,
       unavailableOnError: true,
+      artistName: artist.name,
     });
   } catch (error) {
     showArtistUnavailable();
@@ -1088,7 +1139,7 @@ async function resolveArtistAndLookup(artist) {
 async function lookupConcerts(
   artistUrl,
   startLocation,
-  { manageLoading = true, unavailableOnError = false } = {},
+  { manageLoading = true, unavailableOnError = false, artistName = null } = {},
 ) {
   if (manageLoading) setLoading(true, TOUR_LOADING_MESSAGES);
   try {
@@ -1102,7 +1153,13 @@ async function lookupConcerts(
     const response = await fetch("/api/concerts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ artist_url: artistUrl, start_location: startLocation }),
+      body: JSON.stringify({
+        artist_url: artistUrl,
+        start_location: startLocation,
+        // The name the user picked beats the provider's own fallback label,
+        // which is all a feed with zero events gives us.
+        artist_name: artistName,
+      }),
     });
 
     if (!response.ok) {
@@ -1152,8 +1209,10 @@ function displayConcertResults(data, { shared = false } = {}) {
 function renderShareControl() {
   const button = el("share-search");
   if (!button) return;
-  button.hidden = !state.sharePath;
-  button.disabled = !state.sharePath;
+  // Nothing to share on an empty result — don't offer to share it.
+  const shareable = Boolean(state.sharePath) && state.concerts.length > 0;
+  button.hidden = !shareable;
+  button.disabled = !shareable;
   button.title = state.shareError ?? "Copy a self-contained link to these results";
   el("share-label").textContent = "Copy link";
 }
@@ -1456,7 +1515,7 @@ function selectSavedArtist(artist) {
     el("start-location").focus();
     return;
   }
-  lookupConcerts(artist.url, startLocation);
+  lookupConcerts(artist.url, startLocation, { artistName: artist.name });
 }
 
 function relativeTime(iso) {

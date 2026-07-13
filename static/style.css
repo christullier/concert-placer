@@ -250,7 +250,6 @@ body.search-loading .btn-primary {
   overflow: hidden;
   height: 100%;
   color: var(--ink);
-  perspective: 360px;
   text-align: center;
   white-space: pre;
   pointer-events: none;
@@ -261,51 +260,24 @@ body.search-loading .btn-primary {
   opacity: 0;
 }
 
-.rolling-line {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.typed-line {
   text-align: center;
-  white-space: pre;
-  backface-visibility: hidden;
-  transform-style: preserve-3d;
-  animation-duration: 620ms;
-  animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.22, 0.78, 0.24, 1);
+  white-space: inherit;
 }
 
-.rolling-line-out {
-  transform-origin: 50% 0%;
-  animation-name: roll-line-out;
+.typed-caret {
+  display: inline-block;
+  width: 0.14em;
+  height: 0.78em;
+  margin-left: 0.05em;
+  background: var(--coral);
+  vertical-align: -0.05em;
 }
 
-.rolling-line-in {
-  transform-origin: 50% 100%;
-  animation-name: roll-line-in;
-}
-
-@keyframes roll-line-out {
-  from {
-    opacity: 1;
-    transform: translateY(0) rotateX(0deg);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-45%) rotateX(92deg);
-  }
-}
-
-@keyframes roll-line-in {
-  from {
-    opacity: 0;
-    transform: translateY(45%) rotateX(-92deg);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) rotateX(0deg);
-  }
+/* Only blink while the name sits finished — a caret that blinks mid-word
+   reads as a cursor, not as typing. */
+.rolling-placeholder.is-resting .typed-caret {
+  animation: editor-caret-blink 1s steps(1, end) infinite;
 }
 
 .input-shell::before {
@@ -449,9 +421,8 @@ body.search-loading .btn-primary {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rolling-line-out,
-  .rolling-line-in {
-    animation-duration: 0.01ms;
+  .typed-caret {
+    display: none;
   }
 
   .rolling-placeholder {
@@ -776,7 +747,7 @@ body.search-loading .status.search-status {
 
 .artist-header {
   display: grid;
-  grid-template-columns: 74px minmax(0, 1fr) auto;
+  grid-template-columns: 74px minmax(0, 1fr);
   align-items: center;
   gap: 16px;
 }
@@ -834,40 +805,53 @@ body.search-loading .status.search-status {
   text-transform: uppercase;
 }
 
+/* The summary line and the share action are the same sentence: what you found,
+   and the way to pass it on. Sharing is secondary, so it sits at the summary's
+   weight rather than competing with the artist name. */
+.results-summary-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
 .results-summary {
-  margin: 8px 0 0;
+  margin: 0;
   color: var(--ink-soft);
   font-size: 11px;
   font-weight: 600;
 }
 
 .share-button {
-  align-self: start;
   display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 32px;
-  padding: 6px 9px;
-  background: var(--lime);
-  border: 1px solid var(--ink);
-  color: var(--ink);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
   cursor: pointer;
-  box-shadow: 2px 2px 0 var(--ink);
-  transition: box-shadow 0.13s, transform 0.13s;
 }
 
-.share-button:hover:not(:disabled) {
-  box-shadow: 3px 3px 0 var(--ink);
-  transform: translate(-1px, -1px);
+.share-button::before {
+  content: "·";
+  margin-right: 5px;
+  text-decoration: none;
 }
 
-.share-button:active:not(:disabled) {
-  box-shadow: none;
-  transform: translate(2px, 2px);
+.share-button:hover:not(:disabled),
+.share-button:focus-visible:not(:disabled) {
+  color: var(--blue);
+}
+
+.share-button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .results-controls {
@@ -1356,13 +1340,6 @@ body.search-loading .status.search-status {
   background: #d8d9d1;
 }
 
-.map-label,
-.map-caption {
-  position: absolute;
-  z-index: 800;
-  pointer-events: none;
-}
-
 .map-back {
   position: absolute;
   top: max(16px, env(safe-area-inset-top));
@@ -1395,57 +1372,6 @@ body.search-loading .status.search-status {
 
 body.has-results .map-back:not([hidden]) {
   display: grid;
-}
-
-.map-label {
-  top: 24px;
-  left: 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 9px 12px;
-  background: var(--paper-light);
-  border: 1.5px solid var(--ink);
-  box-shadow: 3px 3px 0 var(--ink);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.map-label span + span {
-  padding-left: 16px;
-  border-left: 1px solid var(--ink);
-  color: var(--ink-soft);
-}
-
-.map-caption {
-  right: 28px;
-  bottom: 32px;
-  display: flex;
-  align-items: stretch;
-  background: var(--lime);
-  border: 1.5px solid var(--ink);
-  box-shadow: var(--shadow-hard);
-  font-family: var(--font-display);
-  font-size: 15px;
-  line-height: 1;
-  text-transform: uppercase;
-  transform: rotate(-1deg);
-}
-
-.map-caption > span:first-child {
-  padding: 14px 15px;
-}
-
-.map-caption-arrow {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  background: var(--coral);
-  border-left: 1.5px solid var(--ink);
-  font-family: var(--font-body);
-  font-size: 20px;
 }
 
 .map-pin {
@@ -1584,11 +1510,6 @@ body.has-results .map-shell {
   animation: map-takeover 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-body.has-results .map-label,
-body.has-results .map-caption {
-  display: none;
-}
-
 body.has-results .sidebar {
   position: fixed;
   z-index: 900;
@@ -1682,10 +1603,6 @@ body.has-results .legend {
     grid-template-columns: 430px 1fr;
   }
 
-  .map-caption {
-    font-size: 12px;
-  }
-
   .legend {
     top: auto;
     bottom: 106px;
@@ -1744,8 +1661,7 @@ body.has-results .legend {
     margin-left: calc(0px - var(--mobile-page-gutter));
   }
 
-  .rolling-placeholder,
-  .rolling-line {
+  .rolling-placeholder {
     align-items: flex-end;
     line-height: 0.82;
     overflow: visible;
@@ -1769,16 +1685,6 @@ body.has-results .legend {
   }
 
   body:not(.has-results)[data-view="list"] .map-shell {
-    display: none;
-  }
-
-  .map-label {
-    top: max(18px, env(safe-area-inset-top));
-    left: 16px;
-  }
-
-  .map-label span + span,
-  .map-caption {
     display: none;
   }
 
