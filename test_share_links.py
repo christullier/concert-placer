@@ -151,6 +151,32 @@ class SharedPageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["result"]["concerts"][0]["venue"], "The Anthem")
         self.assertNotIn("share_path", payload["result"])
 
+    async def test_concert_lookup_works_without_a_google_maps_key(self):
+        start = {"address": "Washington, DC, USA", "lat": 38.9072, "lng": -77.0369}
+        tour = {
+            "artist_name": "Japanese Breakfast",
+            "image_url": None,
+            "concerts": [],
+            "parse_status": "no_shows",
+            "external_url": "https://example.com/tour",
+            "provider": "seated",
+        }
+        request = web_app.ConcertRequest(
+            artist_url="https://example.com/tour",
+            start_location="Washington, DC",
+        )
+
+        with (
+            patch.dict("os.environ", {"SHARE_LINK_SECRET": "test-secret"}, clear=True),
+            patch.object(web_app, "geocode_start", new=AsyncMock(return_value=start)),
+            patch.object(web_app, "get_tour", new=AsyncMock(return_value=tour)) as tour_mock,
+            patch.object(web_app, "_upsert_artist", new=AsyncMock()),
+        ):
+            result = await web_app.lookup_concerts(request)
+
+        self.assertIsNotNone(result["share_path"])
+        self.assertEqual(tour_mock.await_args.args[1], "")
+
     async def test_shared_page_contains_verified_data(self):
         payload = sample_payload()
         token = web_app._encode_share_token(payload, SIGNING_KEY)

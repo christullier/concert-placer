@@ -18,12 +18,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from finder import (
-    ConfigError,
     TourPageParseError,
     geocode_start,
     get_tour,
     read_json_async,
-    require_env,
     resolve_seated_artist_url,
     search_musicbrainz_artists,
 )
@@ -62,6 +60,7 @@ class ConcertRequest(BaseModel):
 
 class ResolveArtistRequest(BaseModel):
     mbid: str
+    artist_name: str | None = None
 
 
 class SaveArtistRequest(BaseModel):
@@ -334,10 +333,10 @@ async def lookup_concerts(request: ConcertRequest) -> dict:
     if not artist_url or not start_location:
         raise HTTPException(status_code=400, detail="Artist URL and start location are required.")
 
-    try:
-        api_key = require_env("GOOGLE_MAPS_API_KEY")
-    except ConfigError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Google is preferred when configured, but the navigation layer can geocode
+    # and estimate distance through its non-Google fallback when the key is
+    # absent, denied, or over quota.
+    api_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
 
     try:
         start, tour = await asyncio.gather(
@@ -407,7 +406,11 @@ async def resolve_artist(request: ResolveArtistRequest) -> dict:
         raise HTTPException(status_code=400, detail="MusicBrainz artist ID is required.")
 
     try:
-        return await resolve_seated_artist_url(mbid, max_urls=3)
+        return await resolve_seated_artist_url(
+            mbid,
+            max_urls=3,
+            artist_name=(request.artist_name or "").strip() or None,
+        )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Artist URL resolution failed: {exc}") from exc
 
