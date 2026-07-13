@@ -30,8 +30,8 @@ class Concert:
     ) -> "Concert":
         ticket_url = (
             attributes.get("exchange-listing-url")
+            or (f"https://go.seated.com/tour-events/{event_id}" if event_id else None)
             or attributes.get("vip-link-url")
-            or (f"https://go.seated.com/events/{event_id}" if event_id else None)
         )
         return cls(
             artist_id=artist_id,

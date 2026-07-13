@@ -213,7 +213,7 @@ class TourFixtureTests(unittest.TestCase):
                         msg="Non-sold-out Billy Strings rows should include a Tickets link.",
                     )
 
-    def test_seated_event_builds_go_seated_ticket_url(self) -> None:
+    def test_seated_event_builds_go_seated_tour_event_url(self) -> None:
         concert = Concert.from_seated_event(
             "artist-id",
             {
@@ -225,7 +225,22 @@ class TourFixtureTests(unittest.TestCase):
             },
             event_id="event-uuid",
         )
-        self.assertEqual(concert.ticket_url, "https://go.seated.com/events/event-uuid")
+        self.assertEqual(concert.ticket_url, "https://go.seated.com/tour-events/event-uuid")
+
+    def test_seated_event_page_precedes_vip_only_url(self) -> None:
+        concert = Concert.from_seated_event(
+            "artist-id",
+            {
+                "venue-name": "Venue",
+                "formatted-address": "City",
+                "starts-at-date-local": "2026-08-01",
+                "ends-at-date-local": None,
+                "is-sold-out": False,
+                "vip-link-url": "https://example.com/vip-only",
+            },
+            event_id="event-uuid",
+        )
+        self.assertEqual(concert.ticket_url, "https://go.seated.com/tour-events/event-uuid")
 
     def test_seated_event_prefers_exchange_listing_url(self) -> None:
         concert = Concert.from_seated_event(
