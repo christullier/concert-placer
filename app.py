@@ -28,7 +28,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
-ARTISTS_FILE = BASE_DIR / "saved_artists.json"
+ARTISTS_FILE = Path(os.getenv("ARTISTS_FILE", BASE_DIR / "saved_artists.json"))
 IP_GEOLOCATION_URLS = [
     url.strip()
     for url in os.getenv(
@@ -207,6 +207,9 @@ async def lookup_concerts(request: ConcertRequest) -> dict:
         "artist": {"name": tour["artist_name"], "image_url": tour["image_url"]},
         "start": start,
         "concerts": [asdict(concert) for concert in tour["concerts"]],
+        "parse_status": tour.get("parse_status", "full"),
+        "external_url": tour.get("external_url"),
+        "provider": tour.get("provider"),
     }
 
 
