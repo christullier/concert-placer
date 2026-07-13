@@ -6,11 +6,13 @@ from unittest.mock import AsyncMock, patch
 
 from Concert import Concert
 from finder import (
+    bandsintown_artist_id_from_url,
     build_tour_result,
     detect_tour_provider,
     get_artist_id_from_html,
     get_tour,
     insert_official_tour_attempt,
+    parse_bandsintown_events,
     parse_tour_page_html,
     parse_songkick_calendar,
     probe_tour_provider,
@@ -53,6 +55,59 @@ def sample_songkick_payload() -> dict:
             },
         }
     }
+
+
+def empty_songkick_payload() -> dict:
+    return {
+        "resultsPage": {
+            "status": "ok",
+            "results": {},
+            "totalEntries": 0,
+            "artist": {"id": 7286084, "name": "Anderson .Paak"},
+        }
+    }
+
+
+def sample_bandsintown_payload() -> list[dict]:
+    return [
+        {
+            "id": "108605695",
+            "url": "https://www.bandsintown.com/e/108605695",
+            "datetime": "2026-08-15T19:00:00",
+            "title": "KCON LA 2026",
+            "artist": {
+                "id": "8679931",
+                "name": "Anderson .Paak",
+                "image_url": "https://photos.bandsintown.com/large/18112721.jpeg",
+            },
+            "venue": {
+                "name": "Crypto.com Arena",
+                "location": "Los Angeles, CA",
+            },
+            "lineup": ["Anderson .Paak"],
+            "offers": [],
+            "artist_id": "8679931",
+            "starts_at": "2026-08-15T19:00:00",
+            "ends_at": "",
+            "sold_out": False,
+        },
+        {
+            "id": "1039405923",
+            "url": "https://www.bandsintown.com/e/1039405923",
+            "venue": {"name": "E11EVEN", "location": "Miami, FL"},
+            "lineup": ["Anderson .Paak"],
+            "offers": [
+                {
+                    "status": "available",
+                    "url": "https://www.bandsintown.com/t/1039405923",
+                }
+            ],
+            "artist_id": "8679931",
+            "starts_at": "2026-09-19T20:00:00",
+            "ends_at": "",
+            "sold_out": False,
+        },
+    ]
 
 
 class TourFixtureTests(unittest.TestCase):
@@ -150,6 +205,60 @@ class TourFixtureTests(unittest.TestCase):
             "393441",
         )
 
+    def test_bandsintown_artist_id_from_direct_url(self) -> None:
+        self.assertEqual(
+            bandsintown_artist_id_from_url("https://www.bandsintown.com/a/8679931-anderson-paak"),
+            "8679931",
+        )
+
+    def test_bandsintown_events_parse_full_event_rows(self) -> None:
+        parsed = parse_bandsintown_events(sample_bandsintown_payload())
+
+        self.assertEqual(parsed["artist_name"], "Anderson .Paak")
+        self.assertIn("18112721", parsed["image_url"])
+        self.assertEqual(len(parsed["concerts"]), 2)
+        first, second = parsed["concerts"]
+        self.assertEqual(
+            (first.venue, first.city, first.start_date),
+            ("Crypto.com Arena", "Los Angeles, CA", "2026-08-15"),
+        )
+        self.assertEqual(first.ticket_url, "https://www.bandsintown.com/e/108605695")
+        self.assertEqual(second.ticket_url, "https://www.bandsintown.com/t/1039405923")
+
+    def test_direct_bandsintown_probe_uses_events_api_without_fetching_artist_html(self) -> None:
+        with patch("finder.read_json", return_value=sample_bandsintown_payload()) as read_json_mock, patch(
+            "finder.read_url"
+        ) as read_url_mock:
+            result = probe_tour_provider("https://www.bandsintown.com/a/8679931-anderson-paak")
+
+        self.assertEqual(result["provider"], "bandsintown")
+        self.assertEqual(result["bandsintown_artist_id"], "8679931")
+        self.assertTrue(result["has_events"])
+        read_json_mock.assert_called_once()
+        read_url_mock.assert_not_called()
+
+    def test_direct_bandsintown_url_runs_through_full_tour_lookup(self) -> None:
+        with patch(
+            "finder.get_bandsintown_tour_info",
+            new=AsyncMock(return_value=sample_bandsintown_payload()),
+        ), patch(
+            "finder.enrich_concert",
+            new=AsyncMock(side_effect=lambda concert, *_args: concert),
+        ), patch("finder.read_url") as read_url_mock:
+            result = asyncio.run(
+                get_tour(
+                    "https://www.bandsintown.com/a/8679931-anderson-paak",
+                    "unused-maps-key",
+                    "Washington, DC",
+                )
+            )
+
+        self.assertEqual(result["provider"], "bandsintown")
+        self.assertEqual(result["parse_status"], "full")
+        self.assertEqual(result["artist_name"], "Anderson .Paak")
+        self.assertEqual(len(result["concerts"]), 2)
+        read_url_mock.assert_not_called()
+
     def test_songkick_calendar_parses_full_event_rows(self) -> None:
         parsed = parse_songkick_calendar(sample_songkick_payload())
 
@@ -163,6 +272,13 @@ class TourFixtureTests(unittest.TestCase):
         )
         self.assertEqual(concert.ticket_url, "https://tickets.example/songkick")
         self.assertIsNone(concert.navigation_error)
+
+    def test_empty_songkick_calendar_keeps_artist_metadata(self) -> None:
+        parsed = parse_songkick_calendar(empty_songkick_payload())
+
+        self.assertEqual(parsed["artist_name"], "Anderson .Paak")
+        self.assertIn("/7286084/", parsed["image_url"])
+        self.assertEqual(parsed["concerts"], [])
 
     def test_direct_songkick_probe_uses_calendar_without_fetching_artist_html(self) -> None:
         with patch("finder.read_json", return_value=sample_songkick_payload()) as read_json_mock, patch(
@@ -217,6 +333,32 @@ class TourFixtureTests(unittest.TestCase):
             result["external_url"],
             "https://www.songkick.com/artists/393441-dj-krush/calendar",
         )
+        read_url_mock.assert_not_called()
+
+    def test_empty_songkick_calendar_falls_through_to_bandsintown_events(self) -> None:
+        with patch(
+            "finder.get_songkick_tour_info",
+            new=AsyncMock(return_value=empty_songkick_payload()),
+        ), patch(
+            "finder.get_bandsintown_tour_info_by_name",
+            new=AsyncMock(return_value=sample_bandsintown_payload()),
+        ) as bandsintown_mock, patch(
+            "finder.enrich_concert",
+            new=AsyncMock(side_effect=lambda concert, *_args: concert),
+        ), patch("finder.read_url") as read_url_mock:
+            result = asyncio.run(
+                get_tour(
+                    "https://www.songkick.com/artists/7286084-anderson-paak",
+                    "unused-maps-key",
+                    "Washington, DC",
+                )
+            )
+
+        self.assertEqual(result["provider"], "bandsintown")
+        self.assertEqual(result["parse_status"], "full")
+        self.assertEqual(result["artist_name"], "Anderson .Paak")
+        self.assertEqual(len(result["concerts"]), 2)
+        bandsintown_mock.assert_awaited_once_with("Anderson .Paak")
         read_url_mock.assert_not_called()
 
     def test_tour_provider_relations_rank_before_social_links(self) -> None:
