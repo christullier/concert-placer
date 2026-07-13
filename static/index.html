@@ -107,81 +107,104 @@
       </section>
 
       <section id="results-section" class="results" aria-labelledby="artist-name" hidden>
-        <div id="artist-header" class="artist-header" hidden>
-          <div class="artist-image-wrap">
-            <img id="artist-avatar" class="artist-avatar" alt="" hidden />
-            <span class="artist-image-fallback" aria-hidden="true">LIVE</span>
-          </div>
-          <div class="artist-copy">
-            <span class="eyebrow">Upcoming route</span>
-            <h2 id="artist-name" class="artist-name"></h2>
-            <p id="results-summary" class="results-summary" aria-live="polite"></p>
-          </div>
-        </div>
-
-        <div class="results-controls">
-          <div class="sort-row">
-            <span class="section-title">Order</span>
-            <div class="segmented" role="group" aria-label="Sort results">
-              <button type="button" data-sort="distance" class="active">Closest</button>
-              <button type="button" data-sort="date">Soonest</button>
-            </div>
-          </div>
-          <div class="filter-row">
-            <div class="filter-group filter-toggles" aria-label="Show filters">
-              <button
-                type="button"
-                class="filter-toggle active"
-                data-filter="hideSoldOut"
-                aria-pressed="true"
-              >
-                Available only
-              </button>
-              <button
-                type="button"
-                class="filter-toggle active"
-                data-filter="hideUnreachable"
-                aria-pressed="true"
-              >
-                Drivable only
-              </button>
-            </div>
-            <div class="filter-group filter-distance-group">
-              <label for="filter-distance" id="filter-distance-label" class="filter-label"
-                >Any drive</label
-              >
-              <input
-                type="range"
-                id="filter-distance"
-                class="filter-slider"
-                min="50"
-                max="1000"
-                step="50"
-                value="1000"
-                aria-label="Maximum drive distance in miles"
-              />
-            </div>
-            <div class="filter-group filter-date-group">
-              <label class="filter-label" for="filter-date-from">From</label>
-              <input type="date" id="filter-date-from" class="filter-date" />
-              <span class="date-separator" aria-hidden="true">→</span>
-              <label class="filter-label" for="filter-date-to">To</label>
-              <input type="date" id="filter-date-to" class="filter-date" />
-            </div>
+        <div class="sheet-controls">
+          <button
+            id="sheet-handle"
+            class="sheet-handle"
+            type="button"
+            aria-label="Expand concert results"
+          >
+            <span class="sheet-grabber" aria-hidden="true"></span>
+            <span id="sheet-peek-label" class="sheet-peek-label">Concerts</span>
+          </button>
+          <div class="sheet-positions" role="group" aria-label="Concert results view">
+            <button type="button" data-sheet-position="map">Map</button>
+            <button type="button" data-sheet-position="both" class="active">Both</button>
+            <button type="button" data-sheet-position="list">List</button>
           </div>
         </div>
 
-        <div id="external-tour-link" class="external-tour-link" hidden>
-          <span class="external-stamp" aria-hidden="true">↗</span>
-          <p id="external-tour-copy" class="external-tour-copy"></p>
-          <a
-            id="external-tour-cta"
-            class="btn-primary external-tour-cta"
-            target="_blank"
-            rel="noopener noreferrer"
-          ></a>
+        <div class="results-content">
+          <div id="artist-header" class="artist-header" hidden>
+            <div class="artist-image-wrap">
+              <img id="artist-avatar" class="artist-avatar" alt="" hidden />
+              <span class="artist-image-fallback" aria-hidden="true">LIVE</span>
+            </div>
+            <div class="artist-copy">
+              <span id="results-location" class="eyebrow">Upcoming route</span>
+              <h2 id="artist-name" class="artist-name"></h2>
+              <p id="results-summary" class="results-summary" aria-live="polite"></p>
+            </div>
+            <button id="new-search" class="new-search" type="button">
+              <span aria-hidden="true">&#8592;</span>
+              <span>New search</span>
+            </button>
+          </div>
+
+          <div class="results-controls">
+            <div class="sort-row">
+              <span class="section-title">Order</span>
+              <div class="segmented" role="group" aria-label="Sort results">
+                <button type="button" data-sort="distance" class="active">Closest</button>
+                <button type="button" data-sort="date">Soonest</button>
+              </div>
+            </div>
+            <div class="filter-row">
+              <div class="filter-group filter-toggles" aria-label="Show filters">
+                <button
+                  type="button"
+                  class="filter-toggle active"
+                  data-filter="hideSoldOut"
+                  aria-pressed="true"
+                >
+                  Available only
+                </button>
+                <button
+                  type="button"
+                  class="filter-toggle active"
+                  data-filter="hideUnreachable"
+                  aria-pressed="true"
+                >
+                  Drivable only
+                </button>
+              </div>
+              <div class="filter-group filter-distance-group">
+                <label for="filter-distance" id="filter-distance-label" class="filter-label"
+                  >Any drive</label
+                >
+                <input
+                  type="range"
+                  id="filter-distance"
+                  class="filter-slider"
+                  min="50"
+                  max="1000"
+                  step="50"
+                  value="1000"
+                  aria-label="Maximum drive distance in miles"
+                />
+              </div>
+              <div class="filter-group filter-date-group">
+                <label class="filter-label" for="filter-date-from">From</label>
+                <input type="date" id="filter-date-from" class="filter-date" />
+                <span class="date-separator" aria-hidden="true">→</span>
+                <label class="filter-label" for="filter-date-to">To</label>
+                <input type="date" id="filter-date-to" class="filter-date" />
+              </div>
+            </div>
+          </div>
+
+          <div id="external-tour-link" class="external-tour-link" hidden>
+            <span class="external-stamp" aria-hidden="true">↗</span>
+            <p id="external-tour-copy" class="external-tour-copy"></p>
+            <a
+              id="external-tour-cta"
+              class="btn-primary external-tour-cta"
+              target="_blank"
+              rel="noopener noreferrer"
+            ></a>
+          </div>
+          <ol id="cards" class="cards"></ol>
         </div>
-        <ol id="cards" class="cards"></ol>
       </section>
 
       <footer class="sidebar-footer"></footer>
@@ -199,10 +222,6 @@
       </div>
     </section>
 
-    <nav class="view-toggle" role="group" aria-label="Switch between list and map">
-      <button type="button" data-view="list" class="active">Shows</button>
-      <button type="button" data-view="map">Map</button>
-    </nav>
   </div>
 
   <script

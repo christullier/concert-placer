@@ -46,6 +46,7 @@ const state = {
   loading: false,
   selectedCandidate: null,
   selectedArtistUrl: null,
+  sheetPosition: "both",
 };
 
 // The fully-open state that "Clear filters" resets to (everything visible).
@@ -66,6 +67,9 @@ let lastBounds = null;
 let artistSearchTimer = null;
 let artistSearchVersion = 0;
 let activeCandidateIndex = -1;
+let sheetDragStartY = null;
+let sheetDragStartHeight = null;
+let sheetDidDrag = false;
 const artistSearchCache = new Map();
 const artistResolutionCache = new Map();
 
@@ -76,12 +80,13 @@ const el = (id) => document.getElementById(id);
 /* ---------- map ---------- */
 
 function initMap() {
-  map = L.map("map", { zoomControl: true }).setView([39.5, -98.35], 4);
+  map = L.map("map", { zoomControl: false }).setView([39.5, -98.35], 4);
   L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
     maxZoom: 19,
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
   }).addTo(map);
+  L.control.zoom({ position: "topright" }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
   addLegend();
 }
@@ -241,13 +246,11 @@ function renderExternalTourLink() {
   const sortRow = document.querySelector(".sort-row");
   const filterRow = document.querySelector(".filter-row");
   const cards = el("cards");
-  const viewToggle = document.querySelector(".view-toggle");
 
   if (!isLinkOnlyResults()) {
     block.hidden = true;
     if (sortRow) sortRow.hidden = false;
     if (filterRow) filterRow.hidden = false;
-    if (viewToggle) viewToggle.hidden = !isMapReady();
     return;
   }
 
@@ -259,10 +262,10 @@ function renderExternalTourLink() {
   if (sortRow) sortRow.hidden = true;
   if (filterRow) filterRow.hidden = true;
   cards.innerHTML = "";
-  if (viewToggle) viewToggle.hidden = true;
 
   const summary = el("results-summary");
   summary.textContent = `Shows available on ${providerName} — open the site for dates and tickets`;
+  el("sheet-peek-label").textContent = "Tour link";
 }
 
 function renderCards() {
@@ -322,6 +325,7 @@ function renderCards() {
   const summary = el("results-summary");
   const total = state.concerts.length;
   const visible = visibleConcerts.length;
+  el("sheet-peek-label").textContent = `${visible} show${visible === 1 ? "" : "s"}`;
   const clearLink = '<button type="button" class="filter-clear">Clear filters</button>';
 
   const filterRow = document.querySelector(".filter-row");
@@ -368,9 +372,7 @@ function renderMarkers() {
 
   if (isLinkOnlyResults()) {
     lastBounds = bounds.length ? bounds : null;
-    if (lastBounds && !(mobileQuery.matches && document.body.dataset.view !== "map")) {
-      map.fitBounds(lastBounds, { padding: [50, 50], maxZoom: 10 });
-    }
+    if (lastBounds) fitMapToResults();
     return;
   }
 
@@ -379,41 +381,168 @@ function renderMarkers() {
     const marker = L.marker([concert.lat, concert.lng], {
       icon: makePin(concertColor(concert)),
     }).bindPopup(popupHtml(concert));
-    marker.on("click", () => select(id, { pan: false }));
+    marker.on("click", () => select(id, { pan: false, fromMarker: true }));
     markerLayer.addLayer(marker);
     markersById.set(id, marker);
     bounds.push([concert.lat, concert.lng]);
   }
 
   lastBounds = bounds.length ? bounds : null;
-  if (lastBounds && !(mobileQuery.matches && document.body.dataset.view !== "map")) {
-    map.fitBounds(lastBounds, { padding: [50, 50], maxZoom: 10 });
-  }
+  if (lastBounds) fitMapToResults();
 }
 
-/* ---------- mobile list/map toggle ---------- */
+/* ---------- immersive results / mobile sheet ---------- */
 
-function setView(view) {
-  if (view === "map" && !isMapReady()) return;
+function sheetDetentHeights() {
+  const viewport = window.innerHeight;
+  return {
+    map: 76,
+    both: Math.min(Math.max(viewport * 0.48, 300), 520),
+    list: viewport,
+  };
+}
 
-  document.body.dataset.view = view;
-  document.querySelectorAll(".view-toggle button").forEach((button) => {
-    button.classList.toggle("active", button.dataset.view === view);
-  });
+function mapFitOptions() {
+  if (!document.body.classList.contains("has-results")) {
+    return { padding: [50, 50], maxZoom: 10 };
+  }
+  if (mobileQuery.matches) {
+    const sheetHeight = sheetDetentHeights()[state.sheetPosition];
+    return {
+      paddingTopLeft: [42, 56],
+      paddingBottomRight: [42, state.sheetPosition === "list" ? 56 : sheetHeight + 34],
+      maxZoom: 10,
+    };
+  }
+  return {
+    paddingTopLeft: [460, 58],
+    paddingBottomRight: [58, 58],
+    maxZoom: 10,
+  };
+}
 
-  if (view === "map" && map) {
-    // Leaflet must recompute dimensions now that its container is visible,
-    // and re-fit the bounds it couldn't measure while hidden.
+function fitMapToResults() {
+  if (!map || !lastBounds) return;
+  map.fitBounds(lastBounds, mapFitOptions());
+}
+
+function refreshMapLayout({ fit = true } = {}) {
+  if (!map) return;
+  requestAnimationFrame(() => {
     map.invalidateSize();
-    if (lastBounds) map.fitBounds(lastBounds, { padding: [50, 50], maxZoom: 10 });
-  }
+    if (fit) fitMapToResults();
+  });
+  window.setTimeout(() => {
+    map.invalidateSize();
+    if (fit) fitMapToResults();
+  }, 460);
 }
 
-function initViewToggle() {
-  document.querySelectorAll(".view-toggle button").forEach((button) => {
-    button.addEventListener("click", () => setView(button.dataset.view));
+function setLandingInert(inert) {
+  document.querySelectorAll(".brand, .search-panel, .saved, .sidebar-footer").forEach((node) => {
+    node.inert = inert;
+    node.setAttribute("aria-hidden", inert ? "true" : "false");
   });
+}
+
+function updateSheetControls() {
+  document.querySelectorAll("[data-sheet-position]").forEach((button) => {
+    const active = button.dataset.sheetPosition === state.sheetPosition;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+  const handle = el("sheet-handle");
+  const labels = {
+    map: "Show concert list",
+    both: "Expand concert list",
+    list: "Show map and concert list",
+  };
+  handle.setAttribute("aria-label", labels[state.sheetPosition]);
+  handle.setAttribute("aria-expanded", state.sheetPosition === "list" ? "true" : "false");
+}
+
+function setSheetPosition(position, { fit = true } = {}) {
+  if (!Object.hasOwn(sheetDetentHeights(), position)) return;
+  state.sheetPosition = position;
+  document.body.dataset.sheet = position;
+  const results = el("results-section");
+  const content = document.querySelector(".results-content");
+  results.style.removeProperty("height");
+  results.classList.remove("is-dragging");
+  content.inert = mobileQuery.matches && position === "map";
+  content.setAttribute("aria-hidden", content.inert ? "true" : "false");
+  updateSheetControls();
+  if (mobileQuery.matches) refreshMapLayout({ fit });
+}
+
+function enterResultsMode() {
+  setSheetPosition("both", { fit: false });
+  setLandingInert(true);
+  document.body.classList.add("has-results");
+  document.body.dataset.view = "map";
+  refreshMapLayout();
+}
+
+function exitResultsMode() {
+  setLandingInert(false);
+  document.body.classList.remove("has-results");
+  delete document.body.dataset.sheet;
   document.body.dataset.view = "list";
+  el("results-section").hidden = true;
+  map?.closePopup();
+  refreshMapLayout({ fit: false });
+  window.setTimeout(() => {
+    el("artist-url").focus();
+    el("artist-url").select();
+  }, 80);
+}
+
+function nearestSheetPosition(height) {
+  const detents = sheetDetentHeights();
+  return Object.entries(detents).reduce((nearest, [position, detentHeight]) =>
+    Math.abs(height - detentHeight) < Math.abs(height - detents[nearest]) ? position : nearest
+  , "both");
+}
+
+function onSheetPointerDown(event) {
+  if (!mobileQuery.matches || event.button > 0) return;
+  const results = el("results-section");
+  sheetDragStartY = event.clientY;
+  sheetDragStartHeight = results.getBoundingClientRect().height;
+  sheetDidDrag = false;
+  results.classList.add("is-dragging");
+  el("sheet-handle").setPointerCapture(event.pointerId);
+}
+
+function onSheetPointerMove(event) {
+  if (sheetDragStartY == null || !mobileQuery.matches) return;
+  const delta = sheetDragStartY - event.clientY;
+  if (Math.abs(delta) > 5) sheetDidDrag = true;
+  const detents = sheetDetentHeights();
+  const height = Math.min(Math.max(sheetDragStartHeight + delta, detents.map), detents.list);
+  el("results-section").style.height = `${height}px`;
+}
+
+function onSheetPointerUp(event) {
+  if (sheetDragStartY == null) return;
+  const results = el("results-section");
+  const height = results.getBoundingClientRect().height;
+  sheetDragStartY = null;
+  sheetDragStartHeight = null;
+  if (el("sheet-handle").hasPointerCapture(event.pointerId)) {
+    el("sheet-handle").releasePointerCapture(event.pointerId);
+  }
+  if (sheetDidDrag) setSheetPosition(nearestSheetPosition(height));
+  else results.classList.remove("is-dragging");
+}
+
+function cycleSheetPosition() {
+  if (sheetDidDrag) {
+    sheetDidDrag = false;
+    return;
+  }
+  const next = { map: "both", both: "list", list: "both" };
+  setSheetPosition(next[state.sheetPosition]);
 }
 
 function popupHtml(concert) {
@@ -430,12 +559,11 @@ function popupHtml(concert) {
   return lines.join("<br>");
 }
 
-function select(id, { pan }) {
+function select(id, { pan, fromMarker = false }) {
   state.selectedId = id;
 
-  // On mobile a card tap (pan) reveals the map so the pin is actually visible.
-  if (pan && isMapReady() && mobileQuery.matches && document.body.dataset.view !== "map") {
-    setView("map");
+  if (fromMarker && mobileQuery.matches && state.sheetPosition === "map") {
+    setSheetPosition("both", { fit: false });
   }
 
   document.querySelectorAll(".card").forEach((card) => {
@@ -515,7 +643,9 @@ function showError(message) {
   banner.hidden = false;
   el("results-section").hidden = true;
   hideArtistCandidates();
+  setLandingInert(false);
   document.body.classList.remove("has-results");
+  delete document.body.dataset.sheet;
 }
 
 async function readErrorDetail(response) {
@@ -546,8 +676,8 @@ async function search() {
   }
   syncLocationControl({ collapse: true });
 
-  // Return to the list so loading progress and results are in view.
-  setView("list");
+  // Keep the search surface visible while loading; immersive mode starts on success.
+  if (document.body.classList.contains("has-results")) exitResultsMode();
 
   if (isLikelyUrl(artistQuery)) {
     await lookupConcerts(normalizeArtistUrl(artistQuery), startLocation);
@@ -665,9 +795,9 @@ async function lookupConcerts(artistUrl, startLocation, { manageLoading = true }
 
     el("candidate-section").hidden = true;
     el("results-section").hidden = false;
-    document.body.classList.add("has-results");
     renderArtistHeader();
     render();
+    enterResultsMode();
     loadSavedArtists();
   } catch (error) {
     showError(`Lookup failed: ${error.message}`);
@@ -808,6 +938,8 @@ function renderArtistHeader() {
   const name = state.artist?.name;
 
   el("artist-name").textContent = name ?? hostnameOf(el("artist-url").value);
+  const location = el("start-location").value.trim();
+  el("results-location").textContent = location ? `From ${location}` : "Upcoming route";
   header.hidden = false;
 
   if (state.artist?.image_url) {
@@ -1038,7 +1170,32 @@ try {
 }
 initSortControls();
 initFilterControls();
-initViewToggle();
+document.querySelectorAll("[data-sheet-position]").forEach((button) => {
+  button.addEventListener("click", () => setSheetPosition(button.dataset.sheetPosition));
+});
+el("sheet-handle").addEventListener("pointerdown", onSheetPointerDown);
+el("sheet-handle").addEventListener("pointermove", onSheetPointerMove);
+el("sheet-handle").addEventListener("pointerup", onSheetPointerUp);
+el("sheet-handle").addEventListener("pointercancel", onSheetPointerUp);
+el("sheet-handle").addEventListener("click", cycleSheetPosition);
+el("new-search").addEventListener("click", exitResultsMode);
+map?.on("click", () => {
+  if (
+    mobileQuery.matches &&
+    document.body.classList.contains("has-results") &&
+    state.sheetPosition !== "map"
+  ) {
+    setSheetPosition("map", { fit: false });
+  }
+});
+window.addEventListener("resize", () => {
+  if (!document.body.classList.contains("has-results")) return;
+  el("results-section").style.removeProperty("height");
+  const content = document.querySelector(".results-content");
+  content.inert = mobileQuery.matches && state.sheetPosition === "map";
+  content.setAttribute("aria-hidden", content.inert ? "true" : "false");
+  refreshMapLayout();
+});
 el("search-form").addEventListener("submit", (event) => {
   event.preventDefault();
   search();
