@@ -114,15 +114,6 @@ function setTheme(themeId) {
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
   if (themeColorMeta) themeColorMeta.setAttribute("content", theme.themeColor);
 
-  const nameEl = el("theme-name");
-  if (nameEl) nameEl.textContent = theme.label;
-
-  const toggle = el("theme-toggle");
-  if (toggle) {
-    toggle.setAttribute("aria-label", `Switch visual style (current: ${theme.label})`);
-    toggle.title = `Style: ${theme.label}. Click to change.`;
-  }
-
   refreshThemeDependentUi();
 }
 
