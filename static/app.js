@@ -8,6 +8,136 @@ const COLORS = {
   start: "#d8ff3e",
 };
 
+const THEME_STORAGE_KEY = "concert-placer:theme";
+const THEMES = [
+  {
+    id: "default",
+    label: "Default",
+    themeColor: "#f0ede4",
+    colors: {
+      drivable: "#3348ff",
+      estimated: "#7655c9",
+      soldOut: "#ff6044",
+      unreachable: "#c83328",
+      start: "#d8ff3e",
+    },
+  },
+  {
+    id: "frutiger-aero",
+    label: "Frutiger Aero",
+    themeColor: "#7ec8e8",
+    colors: {
+      drivable: "#1aa6e0",
+      estimated: "#7a5fd4",
+      soldOut: "#ff8a65",
+      unreachable: "#e04545",
+      start: "#b8f26a",
+    },
+  },
+  {
+    id: "vernacular",
+    label: "Vernacular",
+    themeColor: "#000080",
+    colors: {
+      drivable: "#0000ee",
+      estimated: "#ff00ff",
+      soldOut: "#ff0000",
+      unreachable: "#800000",
+      start: "#00ff00",
+    },
+  },
+  {
+    id: "neumorphism",
+    label: "Neumorphism",
+    themeColor: "#e6ebf2",
+    colors: {
+      drivable: "#6b8cff",
+      estimated: "#9b7ad4",
+      soldOut: "#f0a08c",
+      unreachable: "#d46565",
+      start: "#8fd6b5",
+    },
+  },
+];
+
+function themeById(id) {
+  return THEMES.find((theme) => theme.id === id) || THEMES[0];
+}
+
+function applyThemeColors(theme) {
+  Object.assign(COLORS, theme.colors);
+}
+
+function readStoredThemeId() {
+  try {
+    return localStorage.getItem(THEME_STORAGE_KEY) || "default";
+  } catch {
+    return "default";
+  }
+}
+
+function writeStoredThemeId(id) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, id);
+  } catch {
+    // Storage can be unavailable; theming still works for the session.
+  }
+}
+
+function refreshThemeDependentUi() {
+  document.querySelectorAll(".legend .dot").forEach((dot) => {
+    const key = dot.dataset.color;
+    if (key && COLORS[key]) dot.style.background = COLORS[key];
+  });
+
+  if (state.concerts.length > 0 || state.start) {
+    const selectedId = state.selectedId;
+    renderMarkers({ fit: false });
+    if (selectedId != null) {
+      markersById.forEach((marker, markerId) => {
+        marker.getElement()?.firstChild?.classList.toggle("selected", markerId === selectedId);
+      });
+    }
+  }
+}
+
+function setTheme(themeId) {
+  const theme = themeById(themeId);
+  if (theme.id === "default") {
+    document.documentElement.removeAttribute("data-theme");
+  } else {
+    document.documentElement.setAttribute("data-theme", theme.id);
+  }
+  applyThemeColors(theme);
+  writeStoredThemeId(theme.id);
+
+  const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeColorMeta) themeColorMeta.setAttribute("content", theme.themeColor);
+
+  const nameEl = el("theme-name");
+  if (nameEl) nameEl.textContent = theme.label;
+
+  const toggle = el("theme-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-label", `Switch visual style (current: ${theme.label})`);
+    toggle.title = `Style: ${theme.label}. Click to change.`;
+  }
+
+  refreshThemeDependentUi();
+}
+
+function cycleTheme() {
+  const currentId = document.documentElement.getAttribute("data-theme") || "default";
+  const index = Math.max(0, THEMES.findIndex((theme) => theme.id === currentId));
+  const next = THEMES[(index + 1) % THEMES.length];
+  setTheme(next.id);
+}
+
+function initThemeToggle() {
+  setTheme(readStoredThemeId());
+  el("theme-toggle")?.addEventListener("click", cycleTheme);
+}
+
 const TOUR_LOADING_MESSAGES = [
   "Reading artist page…",
   "Fetching tour dates…",
@@ -448,7 +578,7 @@ function addLegend() {
     ]
       .map(
         ([key, label]) =>
-          `<div><span class="dot" style="background:${COLORS[key]}"></span>${label}</div>`
+          `<div><span class="dot" data-color="${key}" style="background:${COLORS[key]}"></span>${label}</div>`
       )
       .join("");
     return div;
@@ -707,7 +837,7 @@ function renderCards() {
   summary.querySelector(".filter-clear")?.addEventListener("click", clearFilters);
 }
 
-function renderMarkers() {
+function renderMarkers({ fit = true } = {}) {
   if (!isMapReady()) {
     markersById.clear();
     lastBounds = null;
@@ -740,7 +870,7 @@ function renderMarkers() {
   }
 
   lastBounds = bounds.length ? bounds : null;
-  if (lastBounds) fitMapToResults();
+  if (fit && lastBounds) fitMapToResults();
 }
 
 /* ---------- immersive results / mobile sheet ---------- */
@@ -1748,6 +1878,7 @@ try {
   // don't let a broken map abort the rest of the UI setup.
   console.error("Map failed to initialize:", err);
 }
+initThemeToggle();
 initSortControls();
 initFilterControls();
 el("sheet-handle").addEventListener("pointerdown", onSheetPointerDown);
