@@ -1973,3 +1973,1008 @@ body.has-results .legend {
   }
 
 }
+
+/* ---------- theme toggle ---------- */
+
+.theme-toggle {
+  position: fixed;
+  z-index: 1200;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 118px;
+  padding: 10px 14px;
+  background: var(--paper-light);
+  border: 1.5px solid var(--ink);
+  box-shadow: var(--shadow-hard);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.16s, transform 0.16s, box-shadow 0.16s, color 0.16s;
+}
+
+.theme-toggle:hover {
+  background: var(--lime);
+  transform: translate(-1px, -1px);
+  box-shadow: 6px 6px 0 var(--ink);
+}
+
+.theme-toggle:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.theme-toggle-eyebrow {
+  color: var(--ink-soft);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.theme-name {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+body.has-results .theme-toggle {
+  right: auto;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 900px) {
+  body.has-results .theme-toggle {
+    bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+
+  body.has-results[data-sheet="list"] .theme-toggle {
+    bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  body.has-results[data-sheet="map"] .theme-toggle {
+    bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ==========================================================================
+   Theme: Frutiger Aero — glossy aqua glass, soft sky, Web 2.0 shine
+   ========================================================================== */
+
+html[data-theme="frutiger-aero"] {
+  --paper: #7ec8e8;
+  --paper-deep: #5bb5dc;
+  --paper-light: rgba(255, 255, 255, 0.72);
+  --ink: #0a3d5c;
+  --ink-soft: #3a6f8c;
+  --line: rgba(10, 61, 92, 0.18);
+  --line-strong: rgba(10, 61, 92, 0.45);
+  --blue: #1aa6e0;
+  --blue-dark: #0d7fb0;
+  --lime: #b8f26a;
+  --coral: #ff8a65;
+  --green: #2e9e5b;
+  --amber: #e09a20;
+  --red: #e04545;
+  --white: #ffffff;
+  --font-display: "Nunito", "Trebuchet MS", sans-serif;
+  --font-body: "Nunito", "Segoe UI", sans-serif;
+  --shadow-hard: 0 10px 28px rgba(13, 70, 110, 0.28);
+  --shadow-soft: 0 18px 50px rgba(13, 70, 110, 0.22);
+  --aero-shine: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.85) 0%,
+    rgba(255, 255, 255, 0.18) 42%,
+    rgba(255, 255, 255, 0) 58%
+  );
+  --aero-glass: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(190, 230, 255, 0.55) 48%,
+    rgba(140, 210, 245, 0.62) 100%
+  );
+  --radius: 18px;
+}
+
+html[data-theme="frutiger-aero"],
+html[data-theme="frutiger-aero"] body {
+  background:
+    radial-gradient(ellipse 90% 70% at 15% 10%, rgba(255, 255, 255, 0.55), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 85% 20%, rgba(184, 242, 106, 0.35), transparent 50%),
+    linear-gradient(180deg, #9ed8f5 0%, #6bbfe8 38%, #4aa8d4 72%, #3a9bc8 100%);
+  background-attachment: fixed;
+}
+
+html[data-theme="frutiger-aero"] body {
+  font-weight: 600;
+}
+
+html[data-theme="frutiger-aero"] .sidebar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.08)),
+    transparent;
+  background-size: auto;
+  border-right: 1px solid rgba(255, 255, 255, 0.45);
+}
+
+html[data-theme="frutiger-aero"] .brand-lockup {
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.45), 0 8px 24px rgba(13, 70, 110, 0.2);
+  letter-spacing: -0.03em;
+  text-transform: none;
+}
+
+html[data-theme="frutiger-aero"] .brand-fixed-line {
+  color: var(--blue-dark);
+}
+
+html[data-theme="frutiger-aero"] .brand-mark {
+  color: #ff7a59;
+}
+
+html[data-theme="frutiger-aero"] .tagline {
+  background: var(--aero-glass);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 4px 14px rgba(13, 70, 110, 0.18);
+  color: var(--ink);
+  transform: none;
+  backdrop-filter: blur(10px);
+}
+
+html[data-theme="frutiger-aero"] .search-panel,
+html[data-theme="frutiger-aero"] .candidate-popover,
+html[data-theme="frutiger-aero"] .external-tour-link,
+html[data-theme="frutiger-aero"] .legend,
+html[data-theme="frutiger-aero"] .map-back,
+html[data-theme="frutiger-aero"] .map-share,
+html[data-theme="frutiger-aero"] .theme-toggle,
+html[data-theme="frutiger-aero"] body.has-results .results {
+  background: var(--aero-glass);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: var(--radius);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 12px 32px rgba(13, 70, 110, 0.22);
+  backdrop-filter: blur(16px) saturate(1.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
+}
+
+html[data-theme="frutiger-aero"] .search-panel::before {
+  top: 10px;
+  right: 18px;
+  width: 54px;
+  height: 10px;
+  background: var(--aero-shine), linear-gradient(90deg, #7adf9a, #4ec8f0);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+}
+
+html[data-theme="frutiger-aero"] .field input:not(.brand-search-input),
+html[data-theme="frutiger-aero"] .location-summary,
+html[data-theme="frutiger-aero"] .filter-date,
+html[data-theme="frutiger-aero"] .saved-chip,
+html[data-theme="frutiger-aero"] .filter-disclosure,
+html[data-theme="frutiger-aero"] .filter-toggle,
+html[data-theme="frutiger-aero"] .segmented {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 4px 12px rgba(13, 70, 110, 0.12);
+}
+
+html[data-theme="frutiger-aero"] .field input:not(.brand-search-input):focus {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 0 0 3px rgba(26, 166, 224, 0.35),
+    0 8px 20px rgba(13, 70, 110, 0.18);
+  transform: none;
+}
+
+html[data-theme="frutiger-aero"] .btn-primary {
+  background:
+    var(--aero-shine),
+    linear-gradient(180deg, #4ec8f5 0%, #1aa6e0 48%, #0d7fb0 100%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 8px 18px rgba(13, 90, 140, 0.35);
+  text-shadow: 0 1px 0 rgba(0, 40, 70, 0.25);
+}
+
+html[data-theme="frutiger-aero"] .btn-primary:hover:not(:disabled) {
+  background:
+    var(--aero-shine),
+    linear-gradient(180deg, #6ad4fa 0%, #2bb4ea 48%, #1490c4 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 12px 24px rgba(13, 90, 140, 0.4);
+  transform: translateY(-2px);
+}
+
+html[data-theme="frutiger-aero"] .btn-primary:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 50, 90, 0.28),
+    0 3px 8px rgba(13, 90, 140, 0.25);
+}
+
+html[data-theme="frutiger-aero"] .button-arrow {
+  background: linear-gradient(180deg, #dff9a8, #b8f26a);
+  border-radius: 50%;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+html[data-theme="frutiger-aero"] .artist-image-wrap,
+html[data-theme="frutiger-aero"] .artist-name,
+html[data-theme="frutiger-aero"] .card-venue,
+html[data-theme="frutiger-aero"] .sheet-peek-label {
+  text-transform: none;
+  letter-spacing: -0.01em;
+}
+
+html[data-theme="frutiger-aero"] .artist-image-wrap {
+  border-radius: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 8px 20px rgba(13, 70, 110, 0.25);
+  transform: rotate(-1deg);
+  background: linear-gradient(145deg, #4ec8f5, #1aa6e0);
+}
+
+html[data-theme="frutiger-aero"] .segmented button.active,
+html[data-theme="frutiger-aero"] .filter-disclosure.open {
+  background: linear-gradient(180deg, #4ec8f5, #1aa6e0);
+  color: var(--white);
+  border-radius: 10px;
+}
+
+html[data-theme="frutiger-aero"] .filter-toggle.active,
+html[data-theme="frutiger-aero"] .location-summary[aria-expanded="true"],
+html[data-theme="frutiger-aero"] .candidate-button.active,
+html[data-theme="frutiger-aero"] .saved-chip:hover {
+  background: linear-gradient(180deg, #dff9a8, #b8f26a);
+  color: var(--ink);
+  transform: none;
+}
+
+html[data-theme="frutiger-aero"] .card.selected::after {
+  background: rgba(184, 242, 106, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 14px;
+  box-shadow: 0 6px 16px rgba(13, 70, 110, 0.18);
+}
+
+html[data-theme="frutiger-aero"] .card-tickets,
+html[data-theme="frutiger-aero"] .popup-tickets,
+html[data-theme="frutiger-aero"] .badge-distance {
+  border-radius: 999px;
+}
+
+html[data-theme="frutiger-aero"] .map-shell,
+html[data-theme="frutiger-aero"] #map {
+  background: #9ed0e8;
+}
+
+html[data-theme="frutiger-aero"] .leaflet-tile-pane {
+  filter: saturate(1.15) contrast(1.02) brightness(1.05);
+}
+
+html[data-theme="frutiger-aero"] .leaflet-popup-content-wrapper,
+html[data-theme="frutiger-aero"] .leaflet-bar {
+  border-radius: 14px !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 10px 28px rgba(13, 70, 110, 0.22) !important;
+  background: var(--aero-glass);
+  backdrop-filter: blur(12px);
+}
+
+html[data-theme="frutiger-aero"] .map-pin {
+  border-radius: 50% 50% 50% 0;
+  box-shadow: 0 4px 10px rgba(13, 70, 110, 0.35);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
+html[data-theme="frutiger-aero"] .error-banner {
+  background: rgba(255, 220, 210, 0.85);
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(180, 60, 40, 0.2);
+}
+
+html[data-theme="frutiger-aero"] .theme-toggle:hover {
+  background: rgba(184, 242, 106, 0.75);
+  box-shadow: 0 12px 28px rgba(13, 70, 110, 0.28);
+}
+
+html[data-theme="frutiger-aero"] body.has-results .results {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 18px 48px rgba(13, 70, 110, 0.28);
+}
+
+html[data-theme="frutiger-aero"] .sheet-controls {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+@media (max-width: 900px) {
+  html[data-theme="frutiger-aero"] body.has-results .results {
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -16px 40px rgba(13, 70, 110, 0.22);
+  }
+}
+
+/* ==========================================================================
+   Theme: Vernacular Web — DIY GeoCities / early web DIY energy
+   ========================================================================== */
+
+html[data-theme="vernacular"] {
+  --paper: #000080;
+  --paper-deep: #000060;
+  --paper-light: #c0c0c0;
+  --ink: #000000;
+  --ink-soft: #202020;
+  --line: #808080;
+  --line-strong: #000000;
+  --blue: #0000ee;
+  --blue-dark: #0000aa;
+  --lime: #00ff00;
+  --coral: #ff00ff;
+  --green: #008000;
+  --amber: #ffff00;
+  --red: #ff0000;
+  --white: #ffffff;
+  --font-display: "Comic Neue", "Comic Sans MS", cursive;
+  --font-body: "Comic Neue", "Comic Sans MS", cursive;
+  --shadow-hard: 4px 4px 0 #000;
+  --shadow-soft: 6px 6px 0 #000;
+  --radius: 0;
+}
+
+html[data-theme="vernacular"],
+html[data-theme="vernacular"] body {
+  background-color: #000080;
+  background-image:
+    radial-gradient(circle, #ffff00 1.5px, transparent 1.6px),
+    radial-gradient(circle, #ff00ff 1px, transparent 1.1px),
+    radial-gradient(circle, #00ffff 1.2px, transparent 1.3px);
+  background-size: 28px 28px, 42px 42px, 36px 36px;
+  background-position: 0 0, 14px 10px, 8px 22px;
+  color: #ffff00;
+  cursor: auto;
+}
+
+html[data-theme="vernacular"] .sidebar {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 0, 0.04) 0 2px,
+      transparent 2px 16px
+    ),
+    #000080;
+  background-size: auto;
+  border-right: 4px ridge #c0c0c0;
+  color: #ffff00;
+}
+
+html[data-theme="vernacular"] .brand-lockup {
+  color: #ffff00;
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(18px, 2.2vw, 28px);
+  letter-spacing: 0;
+  line-height: 1.25;
+  text-shadow: 3px 3px 0 #ff00ff, -2px 0 0 #00ffff;
+  text-transform: uppercase;
+  animation: vernacular-jitter 1.8s steps(2, end) infinite;
+}
+
+html[data-theme="vernacular"] .brand-fixed-line {
+  color: #00ffff;
+}
+
+html[data-theme="vernacular"] .brand-mark {
+  color: #ff00ff;
+  font-family: "Press Start 2P", monospace;
+}
+
+@keyframes vernacular-jitter {
+  0%,
+  100% { transform: translate(0, 0); }
+  25% { transform: translate(1px, -1px); }
+  50% { transform: translate(-1px, 1px); }
+  75% { transform: translate(1px, 0); }
+}
+
+html[data-theme="vernacular"] .tagline {
+  background: #ff00ff;
+  border: 3px outset #ff99ff;
+  color: #ffff00;
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  letter-spacing: 0;
+  transform: none;
+  animation: vernacular-blink 1.2s step-end infinite;
+}
+
+@keyframes vernacular-blink {
+  50% { opacity: 0; }
+}
+
+html[data-theme="vernacular"] .search-panel,
+html[data-theme="vernacular"] .candidate-popover,
+html[data-theme="vernacular"] .external-tour-link,
+html[data-theme="vernacular"] .legend,
+html[data-theme="vernacular"] .map-back,
+html[data-theme="vernacular"] .map-share,
+html[data-theme="vernacular"] .theme-toggle,
+html[data-theme="vernacular"] body.has-results .results {
+  background: #c0c0c0;
+  border: 4px outset #ffffff;
+  border-radius: 0;
+  box-shadow: 6px 6px 0 #000;
+  color: #000;
+  backdrop-filter: none;
+}
+
+html[data-theme="vernacular"] .search-panel::before {
+  content: "★ NEW ★";
+  top: -14px;
+  right: 12px;
+  width: auto;
+  height: auto;
+  padding: 2px 6px;
+  background: #ff0000;
+  border: 2px solid #ffff00;
+  color: #ffff00;
+  font-family: "Press Start 2P", monospace;
+  font-size: 7px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+html[data-theme="vernacular"] .field-label,
+html[data-theme="vernacular"] .section-title,
+html[data-theme="vernacular"] .eyebrow,
+html[data-theme="vernacular"] .filter-label,
+html[data-theme="vernacular"] .theme-toggle-eyebrow {
+  color: #000080;
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  letter-spacing: 0;
+}
+
+html[data-theme="vernacular"] .field input:not(.brand-search-input),
+html[data-theme="vernacular"] .location-summary,
+html[data-theme="vernacular"] .filter-date {
+  background: #ffffff;
+  border: 3px inset #808080;
+  border-radius: 0;
+  color: #000;
+  box-shadow: none;
+  font-family: "Courier New", Courier, monospace;
+}
+
+html[data-theme="vernacular"] .brand-search-input,
+html[data-theme="vernacular"] .rolling-placeholder {
+  color: #ffff00;
+  caret-color: #00ff00;
+}
+
+html[data-theme="vernacular"] .brand-block-caret,
+html[data-theme="vernacular"] .typed-caret {
+  background: #00ff00;
+}
+
+html[data-theme="vernacular"] .btn-primary {
+  background: #0000ee;
+  border: 4px outset #6699ff;
+  border-radius: 0;
+  box-shadow: 4px 4px 0 #000;
+  color: #ffff00;
+  font-family: "Press Start 2P", monospace;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+html[data-theme="vernacular"] .btn-primary:hover:not(:disabled) {
+  background: #0000ff;
+  box-shadow: 6px 6px 0 #000;
+  transform: translate(-2px, -2px);
+}
+
+html[data-theme="vernacular"] .btn-primary:active:not(:disabled) {
+  border-style: inset;
+  box-shadow: none;
+  transform: translate(2px, 2px);
+}
+
+html[data-theme="vernacular"] .button-arrow {
+  background: #00ff00;
+  border: 2px outset #99ff99;
+  color: #000;
+}
+
+html[data-theme="vernacular"] .saved-chip,
+html[data-theme="vernacular"] .filter-disclosure,
+html[data-theme="vernacular"] .filter-toggle,
+html[data-theme="vernacular"] .segmented {
+  background: #c0c0c0;
+  border: 3px outset #ffffff;
+  border-radius: 0;
+  color: #000;
+}
+
+html[data-theme="vernacular"] .saved-chip:hover,
+html[data-theme="vernacular"] .filter-toggle.active,
+html[data-theme="vernacular"] .location-summary[aria-expanded="true"],
+html[data-theme="vernacular"] .candidate-button.active {
+  background: #ffff00;
+  border-style: inset;
+  color: #000;
+  transform: none;
+}
+
+html[data-theme="vernacular"] .segmented button.active,
+html[data-theme="vernacular"] .filter-disclosure.open {
+  background: #000080;
+  color: #00ff00;
+}
+
+html[data-theme="vernacular"] .artist-name,
+html[data-theme="vernacular"] .card-venue,
+html[data-theme="vernacular"] .sheet-peek-label,
+html[data-theme="vernacular"] .theme-name {
+  font-family: "Press Start 2P", monospace;
+  font-size: 11px;
+  letter-spacing: 0;
+  line-height: 1.35;
+  text-transform: uppercase;
+  color: #000080;
+}
+
+html[data-theme="vernacular"] .artist-image-wrap {
+  background: #ff00ff;
+  border: 4px ridge #ffff00;
+  transform: none;
+  border-radius: 0;
+}
+
+html[data-theme="vernacular"] .artist-image-fallback {
+  color: #ffff00;
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+}
+
+html[data-theme="vernacular"] .card {
+  border-bottom: 2px dashed #000080;
+}
+
+html[data-theme="vernacular"] .card::before {
+  color: #ff00ff;
+  font-family: "Press Start 2P", monospace;
+}
+
+html[data-theme="vernacular"] .card.selected::after {
+  background: #ffff00;
+  border: 3px solid #ff00ff;
+  box-shadow: 4px 4px 0 #000;
+}
+
+html[data-theme="vernacular"] .card-tickets,
+html[data-theme="vernacular"] .popup-tickets {
+  background: #0000ee;
+  border: 2px outset #6699ff;
+  color: #ffff00 !important;
+}
+
+html[data-theme="vernacular"] .badge-distance {
+  background: #00ffff;
+  border: 2px solid #000;
+  color: #000;
+}
+
+html[data-theme="vernacular"] .error-banner {
+  background: #ffff00;
+  border: 4px solid #ff0000;
+  color: #ff0000;
+  box-shadow: 4px 4px 0 #ff0000;
+  font-family: "Courier New", Courier, monospace;
+}
+
+html[data-theme="vernacular"] .status {
+  color: #00ffff;
+  border-color: #00ffff;
+}
+
+html[data-theme="vernacular"] .map-shell,
+html[data-theme="vernacular"] #map {
+  background: #008080;
+}
+
+html[data-theme="vernacular"] .leaflet-tile-pane {
+  filter: contrast(1.35) saturate(1.8) hue-rotate(20deg);
+}
+
+html[data-theme="vernacular"] .leaflet-popup-content-wrapper,
+html[data-theme="vernacular"] .leaflet-bar {
+  background: #c0c0c0 !important;
+  border: 3px outset #ffffff !important;
+  border-radius: 0 !important;
+  box-shadow: 4px 4px 0 #000 !important;
+}
+
+html[data-theme="vernacular"] .leaflet-popup-content strong {
+  font-family: "Press Start 2P", monospace;
+  font-size: 9px;
+}
+
+html[data-theme="vernacular"] .map-pin {
+  border: 3px solid #000;
+  box-shadow: 3px 3px 0 #000;
+}
+
+html[data-theme="vernacular"] .theme-toggle:hover {
+  background: #ffff00;
+  box-shadow: 6px 6px 0 #000;
+}
+
+html[data-theme="vernacular"] body.has-results .results {
+  border: 4px outset #ffffff;
+  box-shadow: 8px 8px 0 #000;
+}
+
+html[data-theme="vernacular"] .sheet-controls {
+  background: #c0c0c0;
+  border-bottom: 3px ridge #808080;
+}
+
+html[data-theme="vernacular"] .results-summary,
+html[data-theme="vernacular"] .card-city,
+html[data-theme="vernacular"] .chip-when,
+html[data-theme="vernacular"] .candidate-meta {
+  color: #000080;
+}
+
+@media (max-width: 900px) {
+  html[data-theme="vernacular"] body.has-results .results {
+    border-radius: 0;
+    border-width: 4px 0 0;
+    box-shadow: 0 -6px 0 #000;
+  }
+
+  html[data-theme="vernacular"] .brand-lockup {
+    font-size: clamp(14px, 4.8vw, 22px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="vernacular"] .brand-lockup,
+  html[data-theme="vernacular"] .tagline {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   Theme: Neumorphism — soft extruded UI, dual shadows, muted surface
+   ========================================================================== */
+
+html[data-theme="neumorphism"] {
+  --paper: #e6ebf2;
+  --paper-deep: #d5dbe6;
+  --paper-light: #e6ebf2;
+  --ink: #3d4656;
+  --ink-soft: #7a8496;
+  --line: rgba(61, 70, 86, 0.08);
+  --line-strong: rgba(61, 70, 86, 0.12);
+  --blue: #6b8cff;
+  --blue-dark: #5570e0;
+  --lime: #8fd6b5;
+  --coral: #f0a08c;
+  --green: #4ea87a;
+  --amber: #c48a3a;
+  --red: #d46565;
+  --white: #eef2f7;
+  --font-display: "Outfit", "Segoe UI", sans-serif;
+  --font-body: "Outfit", "Segoe UI", sans-serif;
+  --neu-light: #ffffff;
+  --neu-dark: #b8c0d0;
+  --shadow-hard: 8px 8px 16px var(--neu-dark), -8px -8px 16px var(--neu-light);
+  --shadow-soft: 12px 12px 28px var(--neu-dark), -12px -12px 28px var(--neu-light);
+  --shadow-inset: inset 5px 5px 10px var(--neu-dark), inset -5px -5px 10px var(--neu-light);
+  --radius: 20px;
+}
+
+html[data-theme="neumorphism"],
+html[data-theme="neumorphism"] body {
+  background: var(--paper);
+}
+
+html[data-theme="neumorphism"] .sidebar {
+  background: var(--paper);
+  background-size: auto;
+  border-right: 0;
+}
+
+html[data-theme="neumorphism"] .brand-lockup {
+  letter-spacing: -0.04em;
+  text-transform: none;
+  font-weight: 700;
+}
+
+html[data-theme="neumorphism"] .brand-fixed-line {
+  color: var(--blue);
+}
+
+html[data-theme="neumorphism"] .brand-mark {
+  color: var(--coral);
+}
+
+html[data-theme="neumorphism"] .tagline {
+  background: var(--paper);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: var(--shadow-hard);
+  color: var(--ink-soft);
+  transform: none;
+  letter-spacing: 0.08em;
+}
+
+html[data-theme="neumorphism"] .search-panel,
+html[data-theme="neumorphism"] .candidate-popover,
+html[data-theme="neumorphism"] .external-tour-link,
+html[data-theme="neumorphism"] .legend,
+html[data-theme="neumorphism"] .map-back,
+html[data-theme="neumorphism"] .map-share,
+html[data-theme="neumorphism"] .theme-toggle,
+html[data-theme="neumorphism"] body.has-results .results {
+  background: var(--paper);
+  border: 0;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hard);
+}
+
+html[data-theme="neumorphism"] .search-panel::before {
+  top: 14px;
+  right: 18px;
+  width: 36px;
+  height: 8px;
+  background: var(--paper);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: var(--shadow-inset);
+}
+
+html[data-theme="neumorphism"] .field input:not(.brand-search-input),
+html[data-theme="neumorphism"] .location-summary,
+html[data-theme="neumorphism"] .filter-date,
+html[data-theme="neumorphism"] .saved-chip,
+html[data-theme="neumorphism"] .filter-disclosure,
+html[data-theme="neumorphism"] .filter-toggle,
+html[data-theme="neumorphism"] .segmented {
+  background: var(--paper);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: var(--shadow-inset);
+  color: var(--ink);
+}
+
+html[data-theme="neumorphism"] .field input:not(.brand-search-input):hover {
+  background: var(--paper);
+}
+
+html[data-theme="neumorphism"] .field input:not(.brand-search-input):focus {
+  box-shadow: var(--shadow-inset), 0 0 0 3px rgba(107, 140, 255, 0.22);
+  transform: none;
+}
+
+html[data-theme="neumorphism"] .btn-primary {
+  background: var(--paper);
+  border: 0;
+  border-radius: 16px;
+  box-shadow: var(--shadow-hard);
+  color: var(--blue);
+}
+
+html[data-theme="neumorphism"] .btn-primary:hover:not(:disabled) {
+  background: var(--paper);
+  box-shadow: 10px 10px 20px var(--neu-dark), -10px -10px 20px var(--neu-light);
+  transform: translateY(-1px);
+  color: var(--blue-dark);
+}
+
+html[data-theme="neumorphism"] .btn-primary:active:not(:disabled) {
+  box-shadow: var(--shadow-inset);
+  transform: none;
+}
+
+html[data-theme="neumorphism"] body:not(.artist-searching):not(.search-loading) .btn-primary:disabled {
+  background: var(--paper);
+  color: var(--ink-soft);
+  box-shadow: var(--shadow-inset);
+}
+
+html[data-theme="neumorphism"] .button-arrow {
+  background: var(--paper);
+  border-radius: 50%;
+  box-shadow: var(--shadow-inset);
+  color: var(--ink);
+}
+
+html[data-theme="neumorphism"] .saved-chip:hover,
+html[data-theme="neumorphism"] .filter-toggle.active,
+html[data-theme="neumorphism"] .location-summary[aria-expanded="true"],
+html[data-theme="neumorphism"] .candidate-button.active {
+  background: var(--paper);
+  box-shadow: var(--shadow-hard);
+  color: var(--ink);
+  transform: none;
+}
+
+html[data-theme="neumorphism"] .segmented button.active,
+html[data-theme="neumorphism"] .filter-disclosure.open {
+  background: var(--paper);
+  color: var(--blue);
+  box-shadow: var(--shadow-inset);
+  border-radius: 12px;
+}
+
+html[data-theme="neumorphism"] .artist-image-wrap {
+  background: var(--paper);
+  border: 0;
+  border-radius: 22px;
+  box-shadow: var(--shadow-hard);
+  transform: none;
+}
+
+html[data-theme="neumorphism"] .artist-image-wrap::after {
+  background: linear-gradient(145deg, transparent 50%, rgba(143, 214, 181, 0.35));
+}
+
+html[data-theme="neumorphism"] .artist-name,
+html[data-theme="neumorphism"] .card-venue,
+html[data-theme="neumorphism"] .sheet-peek-label {
+  text-transform: none;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+html[data-theme="neumorphism"] .card {
+  border-bottom-color: transparent;
+}
+
+html[data-theme="neumorphism"] .card::before {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+html[data-theme="neumorphism"] .card:hover::after {
+  background: transparent;
+}
+
+html[data-theme="neumorphism"] .card.selected::after {
+  background: var(--paper);
+  border: 0;
+  border-radius: 16px;
+  box-shadow: var(--shadow-hard);
+}
+
+html[data-theme="neumorphism"] .badge-distance,
+html[data-theme="neumorphism"] .card-tickets,
+html[data-theme="neumorphism"] .popup-tickets,
+html[data-theme="neumorphism"] .chip {
+  border: 0;
+  border-radius: 999px;
+  box-shadow: var(--shadow-hard);
+  background: var(--paper);
+}
+
+html[data-theme="neumorphism"] .card-tickets,
+html[data-theme="neumorphism"] .popup-tickets {
+  color: var(--blue) !important;
+}
+
+html[data-theme="neumorphism"] .card-tickets:hover,
+html[data-theme="neumorphism"] .popup-tickets:hover {
+  background: var(--paper);
+  color: var(--blue-dark) !important;
+  box-shadow: var(--shadow-inset);
+}
+
+html[data-theme="neumorphism"] .chip-soldout {
+  color: var(--amber);
+}
+
+html[data-theme="neumorphism"] .chip-unreachable {
+  color: var(--red);
+}
+
+html[data-theme="neumorphism"] .error-banner {
+  background: var(--paper);
+  border: 0;
+  border-radius: 16px;
+  box-shadow: var(--shadow-hard);
+  color: var(--red);
+}
+
+html[data-theme="neumorphism"] .status {
+  border-color: transparent;
+}
+
+html[data-theme="neumorphism"] .map-shell,
+html[data-theme="neumorphism"] #map {
+  background: #d8dee8;
+}
+
+html[data-theme="neumorphism"] .leaflet-tile-pane {
+  filter: saturate(0.55) contrast(0.95) brightness(1.05);
+}
+
+html[data-theme="neumorphism"] .leaflet-popup-content-wrapper,
+html[data-theme="neumorphism"] .leaflet-bar {
+  background: var(--paper) !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow-hard) !important;
+}
+
+html[data-theme="neumorphism"] .leaflet-bar a,
+html[data-theme="neumorphism"] .leaflet-bar a:hover {
+  background: var(--paper);
+  border-bottom-color: transparent;
+  color: var(--ink);
+}
+
+html[data-theme="neumorphism"] .map-pin {
+  border: 0;
+  box-shadow: 4px 4px 8px var(--neu-dark), -2px -2px 6px var(--neu-light);
+}
+
+html[data-theme="neumorphism"] .map-pin::after {
+  background: var(--paper);
+}
+
+html[data-theme="neumorphism"] .theme-toggle:hover {
+  background: var(--paper);
+  box-shadow: 10px 10px 20px var(--neu-dark), -10px -10px 20px var(--neu-light);
+}
+
+html[data-theme="neumorphism"] body.has-results .results {
+  box-shadow: var(--shadow-soft);
+}
+
+html[data-theme="neumorphism"] .sheet-controls {
+  background: var(--paper);
+  border-bottom: 0;
+}
+
+html[data-theme="neumorphism"] .results-controls {
+  border-color: transparent;
+}
+
+html[data-theme="neumorphism"] .filter-count {
+  border-radius: 999px;
+  box-shadow: var(--shadow-hard);
+}
+
+html[data-theme="neumorphism"] .external-stamp {
+  background: var(--paper);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: var(--shadow-inset);
+  color: var(--blue);
+}
+
+@media (max-width: 900px) {
+  html[data-theme="neumorphism"] body.has-results .results {
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -10px 30px var(--neu-dark);
+  }
+}
