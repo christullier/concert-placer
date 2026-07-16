@@ -21,7 +21,7 @@
     href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Comic+Neue:wght@400;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Nunito:wght@400;600;700;800&family=Outfit:wght@400;500;600;700&family=Press+Start+2P&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="/static/style.css?v=29" />
+  <link rel="stylesheet" href="/static/style.css?v=30" />
   <script>
     // Apply saved theme before paint to avoid a flash of the default style.
     (function () {
@@ -33,16 +33,7 @@
   </script>
 </head>
 <body data-view="list">
-  <button
-    id="theme-toggle"
-    class="theme-toggle"
-    type="button"
-    aria-label="Switch visual style"
-    title="Switch visual style"
-  >
-    <span class="theme-toggle-eyebrow">Style</span>
-    <span id="theme-name" class="theme-name">Default</span>
-  </button>
+  <button id="theme-toggle" class="theme-easter-egg" type="button" aria-hidden="true" tabindex="-1"></button>
   <div class="layout">
     <aside class="sidebar">
       <form id="search-form" autocomplete="off">
@@ -285,6 +276,6 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
-  <script src="/static/app.js?v=17"></script>
+  <script src="/static/app.js?v=18"></script>
 </body>
 </html>

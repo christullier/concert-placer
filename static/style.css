@@ -1974,73 +1974,39 @@ body.has-results .legend {
 
 }
 
-/* ---------- theme toggle ---------- */
+/* ---------- theme easter egg (invisible bottom-right touch target) ---------- */
 
-.theme-toggle {
+.theme-easter-egg {
   position: fixed;
   z-index: 1200;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: max(16px, env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  min-width: 118px;
-  padding: 10px 14px;
-  background: var(--paper-light);
-  border: 1.5px solid var(--ink);
-  box-shadow: var(--shadow-hard);
-  color: var(--ink);
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.16s, transform 0.16s, box-shadow 0.16s, color 0.16s;
+  right: 0;
+  bottom: 0;
+  width: 80px;
+  height: 80px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.theme-toggle:hover {
-  background: var(--lime);
-  transform: translate(-1px, -1px);
-  box-shadow: 6px 6px 0 var(--ink);
-}
-
-.theme-toggle:active {
-  transform: translate(1px, 1px);
-  box-shadow: 2px 2px 0 var(--ink);
-}
-
-.theme-toggle-eyebrow {
-  color: var(--ink-soft);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.theme-name {
-  font-family: var(--font-display);
-  font-size: 13px;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-  text-transform: uppercase;
-}
-
-body.has-results .theme-toggle {
-  right: auto;
-  left: max(16px, env(safe-area-inset-left));
-  bottom: max(16px, env(safe-area-inset-bottom));
-}
-
-@media (max-width: 900px) {
-  body.has-results .theme-toggle {
-    bottom: calc(92px + env(safe-area-inset-bottom));
+@supports (right: env(safe-area-inset-right)) {
+  .theme-easter-egg {
+    right: env(safe-area-inset-right);
+    bottom: env(safe-area-inset-bottom);
+    width: calc(80px + env(safe-area-inset-right));
+    height: calc(80px + env(safe-area-inset-bottom));
   }
+}
 
-  body.has-results[data-sheet="list"] .theme-toggle {
-    bottom: max(16px, env(safe-area-inset-bottom));
-  }
+.theme-easter-egg:focus {
+  outline: none;
+}
 
-  body.has-results[data-sheet="map"] .theme-toggle {
-    bottom: calc(92px + env(safe-area-inset-bottom));
-  }
+.theme-easter-egg:focus-visible {
+  outline: none;
 }
 
 /* ==========================================================================
@@ -2133,7 +2099,6 @@ html[data-theme="frutiger-aero"] .external-tour-link,
 html[data-theme="frutiger-aero"] .legend,
 html[data-theme="frutiger-aero"] .map-back,
 html[data-theme="frutiger-aero"] .map-share,
-html[data-theme="frutiger-aero"] .theme-toggle,
 html[data-theme="frutiger-aero"] body.has-results .results {
   background: var(--aero-glass);
   border: 1px solid rgba(255, 255, 255, 0.75);
@@ -2288,11 +2253,6 @@ html[data-theme="frutiger-aero"] .error-banner {
   box-shadow: 0 8px 20px rgba(180, 60, 40, 0.2);
 }
 
-html[data-theme="frutiger-aero"] .theme-toggle:hover {
-  background: rgba(184, 242, 106, 0.75);
-  box-shadow: 0 12px 28px rgba(13, 70, 110, 0.28);
-}
-
 html[data-theme="frutiger-aero"] body.has-results .results {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
@@ -2413,7 +2373,6 @@ html[data-theme="vernacular"] .external-tour-link,
 html[data-theme="vernacular"] .legend,
 html[data-theme="vernacular"] .map-back,
 html[data-theme="vernacular"] .map-share,
-html[data-theme="vernacular"] .theme-toggle,
 html[data-theme="vernacular"] body.has-results .results {
   background: #c0c0c0;
   border: 4px outset #ffffff;
@@ -2442,8 +2401,7 @@ html[data-theme="vernacular"] .search-panel::before {
 html[data-theme="vernacular"] .field-label,
 html[data-theme="vernacular"] .section-title,
 html[data-theme="vernacular"] .eyebrow,
-html[data-theme="vernacular"] .filter-label,
-html[data-theme="vernacular"] .theme-toggle-eyebrow {
+html[data-theme="vernacular"] .filter-label {
   color: #000080;
   font-family: "Press Start 2P", monospace;
   font-size: 8px;
@@ -2530,8 +2488,7 @@ html[data-theme="vernacular"] .filter-disclosure.open {
 
 html[data-theme="vernacular"] .artist-name,
 html[data-theme="vernacular"] .card-venue,
-html[data-theme="vernacular"] .sheet-peek-label,
-html[data-theme="vernacular"] .theme-name {
+html[data-theme="vernacular"] .sheet-peek-label {
   font-family: "Press Start 2P", monospace;
   font-size: 11px;
   letter-spacing: 0;
@@ -2619,11 +2576,6 @@ html[data-theme="vernacular"] .leaflet-popup-content strong {
 html[data-theme="vernacular"] .map-pin {
   border: 3px solid #000;
   box-shadow: 3px 3px 0 #000;
-}
-
-html[data-theme="vernacular"] .theme-toggle:hover {
-  background: #ffff00;
-  box-shadow: 6px 6px 0 #000;
 }
 
 html[data-theme="vernacular"] body.has-results .results {
@@ -2733,7 +2685,6 @@ html[data-theme="neumorphism"] .external-tour-link,
 html[data-theme="neumorphism"] .legend,
 html[data-theme="neumorphism"] .map-back,
 html[data-theme="neumorphism"] .map-share,
-html[data-theme="neumorphism"] .theme-toggle,
 html[data-theme="neumorphism"] body.has-results .results {
   background: var(--paper);
   border: 0;
@@ -2939,11 +2890,6 @@ html[data-theme="neumorphism"] .map-pin {
 
 html[data-theme="neumorphism"] .map-pin::after {
   background: var(--paper);
-}
-
-html[data-theme="neumorphism"] .theme-toggle:hover {
-  background: var(--paper);
-  box-shadow: 10px 10px 20px var(--neu-dark), -10px -10px 20px var(--neu-light);
 }
 
 html[data-theme="neumorphism"] body.has-results .results {
