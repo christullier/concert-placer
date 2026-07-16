@@ -9,6 +9,24 @@ const COLORS = {
 };
 
 const THEME_STORAGE_KEY = "concert-placer:theme";
+const MAP_TILE_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const MAP_BASEMAPS = {
+  default: {
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+  },
+  "frutiger-aero": {
+    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+  },
+  // Dark tiles keep neon vernacular pins readable; light+hue-rotate washed the map out.
+  vernacular: {
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  },
+  // Soft gray canvas matches extruded UI without crushing contrast.
+  neumorphism: {
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+  },
+};
 const THEMES = [
   {
     id: "default",
@@ -84,7 +102,26 @@ function writeStoredThemeId(id) {
   }
 }
 
+function applyThemeBasemap(themeId) {
+  if (!map) return;
+  const basemap = MAP_BASEMAPS[themeId] || MAP_BASEMAPS.default;
+  if (baseLayer && baseLayer._url === basemap.url) {
+    requestAnimationFrame(() => map.invalidateSize());
+    return;
+  }
+  if (baseLayer) map.removeLayer(baseLayer);
+  baseLayer = L.tileLayer(basemap.url, {
+    maxZoom: 19,
+    attribution: MAP_TILE_ATTRIBUTION,
+  }).addTo(map);
+  // Theme swaps can change chrome around the map; force Leaflet to reflow.
+  requestAnimationFrame(() => map.invalidateSize());
+}
+
 function refreshThemeDependentUi() {
+  const themeId = document.documentElement.getAttribute("data-theme") || "default";
+  applyThemeBasemap(themeId);
+
   document.querySelectorAll(".legend .dot").forEach((dot) => {
     const key = dot.dataset.color;
     if (key && COLORS[key]) dot.style.background = COLORS[key];
@@ -447,6 +484,7 @@ const OPEN_FILTERS = {
 
 let map;
 let markerLayer;
+let baseLayer;
 const markersById = new Map();
 let loadingTimer = null;
 let lastBounds = null;
@@ -543,11 +581,7 @@ function readEmbeddedSharedSearch() {
 
 function initMap() {
   map = L.map("map", { zoomControl: false }).setView([39.5, -98.35], 4);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-    maxZoom: 19,
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-  }).addTo(map);
+  applyThemeBasemap(document.documentElement.getAttribute("data-theme") || "default");
   L.control.zoom({ position: "topright" }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
 }
