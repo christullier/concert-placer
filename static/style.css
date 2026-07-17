@@ -2557,7 +2557,7 @@ html[data-theme="vernacular"] #map {
 }
 
 html[data-theme="vernacular"] .leaflet-tile-pane {
-  filter: contrast(1.35) saturate(1.8) hue-rotate(20deg);
+  filter: none;
 }
 
 html[data-theme="vernacular"] .leaflet-popup-content-wrapper,
@@ -2865,7 +2865,7 @@ html[data-theme="neumorphism"] #map {
 }
 
 html[data-theme="neumorphism"] .leaflet-tile-pane {
-  filter: saturate(0.55) contrast(0.95) brightness(1.05);
+  filter: none;
 }
 
 html[data-theme="neumorphism"] .leaflet-popup-content-wrapper,
