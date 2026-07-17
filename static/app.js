@@ -9,16 +9,22 @@ const COLORS = {
 };
 
 const THEME_STORAGE_KEY = "concert-placer:theme";
-const BASEMAPS = {
-  light: {
+const MAP_TILE_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const MAP_BASEMAPS = {
+  default: {
     url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
   },
-  street: {
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  "frutiger-aero": {
+    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+  },
+  // Dark tiles keep neon vernacular pins readable; light+hue-rotate washed the map out.
+  vernacular: {
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+  },
+  // Soft gray canvas matches extruded UI without crushing contrast.
+  neumorphism: {
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
   },
 };
 const THEMES = [
@@ -26,7 +32,6 @@ const THEMES = [
     id: "default",
     label: "Default",
     themeColor: "#f0ede4",
-    basemap: "light",
     colors: {
       drivable: "#3348ff",
       estimated: "#7655c9",
@@ -39,7 +44,6 @@ const THEMES = [
     id: "frutiger-aero",
     label: "Frutiger Aero",
     themeColor: "#7ec8e8",
-    basemap: "light",
     colors: {
       drivable: "#1aa6e0",
       estimated: "#7a5fd4",
@@ -52,7 +56,6 @@ const THEMES = [
     id: "vernacular",
     label: "Vernacular",
     themeColor: "#000080",
-    basemap: "street",
     colors: {
       drivable: "#0000ee",
       estimated: "#ff00ff",
@@ -65,7 +68,6 @@ const THEMES = [
     id: "neumorphism",
     label: "Neumorphism",
     themeColor: "#e6ebf2",
-    basemap: "light",
     colors: {
       drivable: "#6b8cff",
       estimated: "#9b7ad4",
@@ -84,19 +86,6 @@ function applyThemeColors(theme) {
   Object.assign(COLORS, theme.colors);
 }
 
-function applyThemeBasemap(theme) {
-  if (!map || activeBasemap === theme.basemap) return;
-  if (tileLayer) map.removeLayer(tileLayer);
-
-  const basemap = BASEMAPS[theme.basemap] || BASEMAPS.light;
-  tileLayer = L.tileLayer(basemap.url, {
-    maxZoom: 19,
-    attribution: basemap.attribution,
-  }).addTo(map);
-  tileLayer.bringToBack();
-  activeBasemap = theme.basemap;
-}
-
 function readStoredThemeId() {
   try {
     return localStorage.getItem(THEME_STORAGE_KEY) || "default";
@@ -113,7 +102,26 @@ function writeStoredThemeId(id) {
   }
 }
 
+function applyThemeBasemap(themeId) {
+  if (!map) return;
+  const basemap = MAP_BASEMAPS[themeId] || MAP_BASEMAPS.default;
+  if (baseLayer && baseLayer._url === basemap.url) {
+    requestAnimationFrame(() => map.invalidateSize());
+    return;
+  }
+  if (baseLayer) map.removeLayer(baseLayer);
+  baseLayer = L.tileLayer(basemap.url, {
+    maxZoom: 19,
+    attribution: MAP_TILE_ATTRIBUTION,
+  }).addTo(map);
+  // Theme swaps can change chrome around the map; force Leaflet to reflow.
+  requestAnimationFrame(() => map.invalidateSize());
+}
+
 function refreshThemeDependentUi() {
+  const themeId = document.documentElement.getAttribute("data-theme") || "default";
+  applyThemeBasemap(themeId);
+
   document.querySelectorAll(".legend .dot").forEach((dot) => {
     const key = dot.dataset.color;
     if (key && COLORS[key]) dot.style.background = COLORS[key];
@@ -138,7 +146,6 @@ function setTheme(themeId) {
     document.documentElement.setAttribute("data-theme", theme.id);
   }
   applyThemeColors(theme);
-  applyThemeBasemap(theme);
   writeStoredThemeId(theme.id);
 
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
@@ -476,9 +483,8 @@ const OPEN_FILTERS = {
 };
 
 let map;
-let tileLayer;
-let activeBasemap;
 let markerLayer;
+let baseLayer;
 const markersById = new Map();
 let loadingTimer = null;
 let lastBounds = null;
@@ -575,7 +581,7 @@ function readEmbeddedSharedSearch() {
 
 function initMap() {
   map = L.map("map", { zoomControl: false }).setView([39.5, -98.35], 4);
-  applyThemeBasemap(themeById(readStoredThemeId()));
+  applyThemeBasemap(document.documentElement.getAttribute("data-theme") || "default");
   L.control.zoom({ position: "topright" }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
 }

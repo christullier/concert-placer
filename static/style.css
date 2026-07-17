@@ -2552,30 +2552,65 @@ html[data-theme="vernacular"] .status {
 }
 
 html[data-theme="vernacular"] .map-shell,
-html[data-theme="vernacular"] #map {
-  background: #008080;
+html[data-theme="vernacular"] #map,
+html[data-theme="vernacular"] .leaflet-container {
+  background: #1b1b1b;
+  color: #000;
 }
 
+/* Dark basemap already carries the look — keep tiles crisp, not hue-rotated. */
 html[data-theme="vernacular"] .leaflet-tile-pane {
   filter: none;
 }
 
 html[data-theme="vernacular"] .leaflet-popup-content-wrapper,
+html[data-theme="vernacular"] .leaflet-popup-tip,
 html[data-theme="vernacular"] .leaflet-bar {
   background: #c0c0c0 !important;
   border: 3px outset #ffffff !important;
   border-radius: 0 !important;
   box-shadow: 4px 4px 0 #000 !important;
+  color: #000;
+}
+
+html[data-theme="vernacular"] .leaflet-bar a,
+html[data-theme="vernacular"] .leaflet-bar a:hover {
+  background: #c0c0c0;
+  border-bottom-color: #808080;
+  color: #000;
+  font-weight: 700;
 }
 
 html[data-theme="vernacular"] .leaflet-popup-content strong {
   font-family: "Press Start 2P", monospace;
   font-size: 9px;
+  color: #000080;
+}
+
+html[data-theme="vernacular"] .leaflet-control-attribution {
+  background: rgba(0, 0, 0, 0.72) !important;
+  color: #00ffff;
+}
+
+html[data-theme="vernacular"] .leaflet-control-attribution a {
+  color: #ffff00;
 }
 
 html[data-theme="vernacular"] .map-pin {
-  border: 3px solid #000;
+  border: 3px solid #ffff00;
   box-shadow: 3px 3px 0 #000;
+}
+
+html[data-theme="vernacular"] .map-pin::after {
+  background: #000080;
+  border: 1px solid #00ffff;
+}
+
+html[data-theme="vernacular"] .legend {
+  background: #c0c0c0;
+  border: 3px outset #ffffff;
+  box-shadow: 4px 4px 0 #000;
+  color: #000;
 }
 
 html[data-theme="vernacular"] body.has-results .results {
@@ -2865,20 +2900,25 @@ html[data-theme="neumorphism"] .status {
 }
 
 html[data-theme="neumorphism"] .map-shell,
-html[data-theme="neumorphism"] #map {
+html[data-theme="neumorphism"] #map,
+html[data-theme="neumorphism"] .leaflet-container {
   background: #d8dee8;
+  color: var(--ink);
 }
 
+/* Avoid heavy filters — they flatten tiles and hide soft pins. */
 html[data-theme="neumorphism"] .leaflet-tile-pane {
   filter: none;
 }
 
 html[data-theme="neumorphism"] .leaflet-popup-content-wrapper,
+html[data-theme="neumorphism"] .leaflet-popup-tip,
 html[data-theme="neumorphism"] .leaflet-bar {
   background: var(--paper) !important;
   border: 0 !important;
   border-radius: 16px !important;
   box-shadow: var(--shadow-hard) !important;
+  color: var(--ink);
 }
 
 html[data-theme="neumorphism"] .leaflet-bar a,
@@ -2886,15 +2926,67 @@ html[data-theme="neumorphism"] .leaflet-bar a:hover {
   background: var(--paper);
   border-bottom-color: transparent;
   color: var(--ink);
+  font-weight: 700;
+}
+
+html[data-theme="neumorphism"] .leaflet-bar a:hover {
+  color: var(--blue);
+}
+
+html[data-theme="neumorphism"] .leaflet-control-attribution {
+  background: rgba(230, 235, 242, 0.9) !important;
+  color: var(--ink-soft);
+  border-radius: 8px 0 0 0;
 }
 
 html[data-theme="neumorphism"] .map-pin {
-  border: 0;
-  box-shadow: 4px 4px 8px var(--neu-dark), -2px -2px 6px var(--neu-light);
+  border: 2px solid rgba(61, 70, 86, 0.35);
+  box-shadow:
+    5px 5px 10px var(--neu-dark),
+    -3px -3px 8px var(--neu-light);
 }
 
 html[data-theme="neumorphism"] .map-pin::after {
+  background: #fff;
+  box-shadow: inset 1px 1px 2px rgba(184, 192, 208, 0.7);
+}
+
+html[data-theme="neumorphism"] .map-pin.selected {
+  border-color: var(--blue);
+  box-shadow:
+    6px 6px 14px var(--neu-dark),
+    -4px -4px 10px var(--neu-light);
+}
+
+html[data-theme="neumorphism"] .legend {
   background: var(--paper);
+  border: 0;
+  border-radius: 16px;
+  box-shadow: var(--shadow-hard);
+  color: var(--ink);
+}
+
+html[data-theme="neumorphism"] .map-back,
+html[data-theme="neumorphism"] .map-share {
+  background: var(--paper);
+  border: 0;
+  border-radius: 16px;
+  box-shadow: var(--shadow-hard);
+  color: var(--ink);
+}
+
+html[data-theme="neumorphism"] .map-back:hover,
+html[data-theme="neumorphism"] .map-share:hover {
+  background: var(--paper);
+  color: var(--blue);
+  box-shadow: 10px 10px 20px var(--neu-dark), -10px -10px 20px var(--neu-light);
+  transform: translateY(-1px);
+}
+
+html[data-theme="neumorphism"] .map-share.is-copied {
+  background: var(--paper);
+  color: var(--green);
+  box-shadow: var(--shadow-inset);
 }
 
 html[data-theme="neumorphism"] body.has-results .results {
