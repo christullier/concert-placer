@@ -2596,6 +2596,11 @@ html[data-theme="vernacular"] .candidate-meta {
 }
 
 @media (max-width: 900px) {
+  html[data-theme="vernacular"] body.has-results .sidebar {
+    background: transparent;
+    border: 0;
+  }
+
   html[data-theme="vernacular"] body.has-results .results {
     border-radius: 0;
     border-width: 4px 0 0;
@@ -2919,6 +2924,11 @@ html[data-theme="neumorphism"] .external-stamp {
 }
 
 @media (max-width: 900px) {
+  html[data-theme="neumorphism"] body.has-results .sidebar {
+    background: transparent;
+    border: 0;
+  }
+
   html[data-theme="neumorphism"] body.has-results .results {
     border-radius: 24px 24px 0 0;
     box-shadow: 0 -10px 30px var(--neu-dark);
