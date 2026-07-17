@@ -191,31 +191,14 @@ const POPUP_EDGE_PADDING = [24, 24];
 const SITE_TITLE = "Concert";
 const SAVED_ARTIST_SCROLL_SPEED = 18;
 
-// One-time snapshot of currently active, most popular touring artists.
+// Verified snapshot of artists with upcoming shows resolvable in this app (July 2026).
 // Used only as cycling placeholder text in the artist search field.
 const POPULAR_ARTISTS = [
-  "Taylor Swift", "Beyoncé", "Bad Bunny", "Coldplay", "The Weeknd",
-  "Drake", "Kendrick Lamar", "SZA", "Olivia Rodrigo", "Billie Eilish",
-  "Ariana Grande", "Harry Styles", "Dua Lipa", "Post Malone", "Travis Scott",
-  "Zach Bryan", "Morgan Wallen", "Luke Combs", "Chris Stapleton", "Noah Kahan",
-  "Sabrina Carpenter", "Chappell Roan", "Tyler, the Creator", "Doja Cat", "Lana Del Rey",
-  "Bruno Mars", "Ed Sheeran", "Pink", "P!nk", "Metallica",
-  "Foo Fighters", "Green Day", "Pearl Jam", "Red Hot Chili Peppers", "Blink-182",
-  "Twenty One Pilots", "Paramore", "The Killers", "Arctic Monkeys", "Tame Impala",
-  "Vampire Weekend", "The Strokes", "Hozier", "Mumford & Sons", "The Lumineers",
-  "Fleet Foxes", "Bon Iver", "Sufjan Stevens", "Sylvan Esso", "Japanese Breakfast",
-  "Phoebe Bridgers", "boygenius", "Mitski", "Big Thief", "Weyes Blood",
-  "Angel Olsen", "Waxahatchee", "Lucy Dacus", "Snail Mail", "Soccer Mommy",
-  "Wednesday", "MJ Lenderman", "Alex G", "King Gizzard & the Lizard Wizard", "Khruangbin",
-  "Vulfpeck", "Thundercat", "Anderson .Paak", "Leon Bridges", "Michael Kiwanuka",
-  "Glass Animals", "alt-J", "Two Door Cinema Club", "Portugal. The Man", "Foster the People",
-  "Odesza", "Rüfüs Du Sol", "Bonobo", "Four Tet", "Caribou",
-  "Fred again..", "Disclosure", "Flume", "Kaytranada", "Jamie xx",
-  "The National", "Interpol", "Wilco", "Spoon", "The War on Drugs",
-  "Father John Misty", "Kurt Vile", "Cage the Elephant", "Modest Mouse", "Death Cab for Cutie",
-  "Turnstile", "Idles", "Fontaines D.C.", "black midi", "Black Country, New Road",
-  "Wet Leg", "Beabadoobee", "Clairo", "girl in red", "Faye Webster",
-  "Remi Wolf", "Still Woozy", "Dominic Fike", "Omar Apollo", "Steve Lacy",
+  "Harry Styles", "Big Thief", "Mac DeMarco", "Bleachers", "Death Cab for Cutie",
+  "Noah Kahan", "Jimmy Eat World", "Goose", "Manchester Orchestra",
+  "Queens of the Stone Age", "Tedeschi Trucks Band", "Foo Fighters",
+  "The Mountain Goats", "Royal Blood", "Lorde", "Caamp", "Sylvan Esso",
+  "Turnstile", "Jay Som", "Trampled by Turtles",
 ];
 
 let placeholderCycleTimer = null;
