@@ -2560,7 +2560,7 @@ html[data-theme="vernacular"] .leaflet-container {
 
 /* Dark basemap already carries the look — keep tiles crisp, not hue-rotated. */
 html[data-theme="vernacular"] .leaflet-tile-pane {
-  filter: contrast(1.08) saturate(1.15);
+  filter: none;
 }
 
 html[data-theme="vernacular"] .leaflet-popup-content-wrapper,
@@ -2631,6 +2631,11 @@ html[data-theme="vernacular"] .candidate-meta {
 }
 
 @media (max-width: 900px) {
+  html[data-theme="vernacular"] body.has-results .sidebar {
+    background: transparent;
+    border: 0;
+  }
+
   html[data-theme="vernacular"] body.has-results .results {
     border-radius: 0;
     border-width: 4px 0 0;
@@ -2903,7 +2908,7 @@ html[data-theme="neumorphism"] .leaflet-container {
 
 /* Avoid heavy filters — they flatten tiles and hide soft pins. */
 html[data-theme="neumorphism"] .leaflet-tile-pane {
-  filter: saturate(0.7) contrast(1.02);
+  filter: none;
 }
 
 html[data-theme="neumorphism"] .leaflet-popup-content-wrapper,
@@ -3011,6 +3016,11 @@ html[data-theme="neumorphism"] .external-stamp {
 }
 
 @media (max-width: 900px) {
+  html[data-theme="neumorphism"] body.has-results .sidebar {
+    background: transparent;
+    border: 0;
+  }
+
   html[data-theme="neumorphism"] body.has-results .results {
     border-radius: 24px 24px 0 0;
     box-shadow: 0 -10px 30px var(--neu-dark);
