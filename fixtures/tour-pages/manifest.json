@@ -1,0 +1,281 @@
+[
+  {
+    "provider": "seated",
+    "artist_name": "Lawrence",
+    "url": "https://lawrencetheband.com/tour",
+    "filename": "fixtures/tour-pages/seated/lawrence-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 76900,
+    "detection_signals": [
+      "artist-id=\"9ee24193-6e20-4c0c-9917-c22d9245e8bf\"",
+      "seated\\.com"
+    ],
+    "notes": "Compatible with current get_artist_id() parser.",
+    "seated_artist_id": "9ee24193-6e20-4c0c-9917-c22d9245e8bf"
+  },
+  {
+    "provider": "seated",
+    "artist_name": "Jack Johnson",
+    "url": "https://jackjohnsonmusic.com/",
+    "filename": "fixtures/tour-pages/seated/jack-johnson-home.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 39998,
+    "detection_signals": [
+      "artist-id=\"d94bb941-35f9-4eb1-a54a-3459a7652c11\"",
+      "seated\\.com"
+    ],
+    "notes": "Compatible with current get_artist_id() parser.",
+    "seated_artist_id": "d94bb941-35f9-4eb1-a54a-3459a7652c11"
+  },
+  {
+    "provider": "seated",
+    "artist_name": "Bleachers",
+    "url": "https://www.bleachersmusic.com/tour",
+    "filename": "fixtures/tour-pages/seated/bleachers-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 23302,
+    "detection_signals": [
+      "artist-id=\"f0aa2e27-9ac3-40f0-8ca0-1b68da887bef\"",
+      "seated\\.com"
+    ],
+    "notes": "Compatible with current get_artist_id() parser.",
+    "seated_artist_id": "f0aa2e27-9ac3-40f0-8ca0-1b68da887bef"
+  },
+  {
+    "provider": "seated",
+    "artist_name": "Big Thief",
+    "url": "https://www.bigthief.net/tour",
+    "filename": "fixtures/tour-pages/seated/big-thief-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 112428,
+    "detection_signals": [
+      "artist-id=\"4be51ba4-e131-4906-a195-ddd39af45363\"",
+      "seated\\.com"
+    ],
+    "notes": "Compatible with current get_artist_id() parser.",
+    "seated_artist_id": "4be51ba4-e131-4906-a195-ddd39af45363"
+  },
+  {
+    "provider": "seated",
+    "artist_name": "Wet Leg",
+    "url": "https://www.wetlegband.com/tour",
+    "filename": "fixtures/tour-pages/seated/wet-leg-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 35860,
+    "detection_signals": [
+      "artist-id=\"b3916c16-f8ca-4aaf-b916-80bfe6ac4a08\"",
+      "seated\\.com"
+    ],
+    "notes": "Compatible with current get_artist_id() parser.",
+    "seated_artist_id": "b3916c16-f8ca-4aaf-b916-80bfe6ac4a08"
+  },
+  {
+    "provider": "seated",
+    "artist_name": "Japanese Breakfast",
+    "url": "https://www.japanesebreakfast.rocks/tour",
+    "filename": "fixtures/tour-pages/seated/japanese-breakfast-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 55979,
+    "detection_signals": [
+      "artist-id=\"ffebedb9-2381-4520-805a-d19100667ffe\"",
+      "seated\\.com"
+    ],
+    "notes": "Compatible with current get_artist_id() parser.",
+    "seated_artist_id": "ffebedb9-2381-4520-805a-d19100667ffe"
+  },
+  {
+    "provider": "seated",
+    "artist_name": "Billie Marten",
+    "url": "https://www.billiemarten.co.uk/tour",
+    "filename": "fixtures/tour-pages/seated/billie-marten-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 121589,
+    "detection_signals": [
+      "artist-id=\"02ff9cc6-2201-4569-ac63-31e9685a4b9f\"",
+      "seated\\.com"
+    ],
+    "notes": "Compatible with current get_artist_id() parser.",
+    "seated_artist_id": "02ff9cc6-2201-4569-ac63-31e9685a4b9f"
+  },
+  {
+    "provider": "bandsintown",
+    "artist_name": "Jacob Collier",
+    "url": "https://www.jacobcollier.com/tour/",
+    "filename": "fixtures/tour-pages/bandsintown/jacob-collier-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 162563,
+    "detection_signals": [
+      "artist-id=\"0ea8f8e4-2dec-4f6f-9b3c-5e79661e4f06\"",
+      "bandsintown\\.com"
+    ],
+    "notes": ""
+  },
+  {
+    "provider": "bandsintown",
+    "artist_name": "Glass Animals",
+    "url": "https://www.glassanimals.com/tour",
+    "filename": "fixtures/tour-pages/bandsintown/glass-animals-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 86974,
+    "detection_signals": [
+      "bandsintown\\.com"
+    ],
+    "notes": ""
+  },
+  {
+    "provider": "bandsintown",
+    "artist_name": "The War on Drugs",
+    "url": "https://www.thewarondrugs.net/tour",
+    "filename": "fixtures/tour-pages/bandsintown/war-on-drugs-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 44505,
+    "detection_signals": [
+      "bandsintown\\.com"
+    ],
+    "notes": ""
+  },
+  {
+    "provider": "bandsintown",
+    "artist_name": "The Killers",
+    "url": "https://www.thekillersmusic.com/tour",
+    "filename": "fixtures/tour-pages/bandsintown/killers-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 243176,
+    "detection_signals": [
+      "bandsintown\\.com"
+    ],
+    "notes": ""
+  },
+  {
+    "provider": "ticketmaster",
+    "artist_name": "Billy Strings",
+    "url": "https://www.billystrings.com/tour",
+    "filename": "fixtures/tour-pages/ticketmaster/billy-strings-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 234638,
+    "detection_signals": [
+      "ticketmaster\\.com"
+    ],
+    "notes": ""
+  },
+  {
+    "provider": "ticketmaster",
+    "artist_name": "Gregory Alan Isakov",
+    "url": "https://www.gregoryalanisakov.com/tour",
+    "filename": "fixtures/tour-pages/ticketmaster/gregory-alan-isakov-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 56727,
+    "detection_signals": [
+      "ticketmaster\\.com"
+    ],
+    "notes": ""
+  },
+  {
+    "provider": "axs",
+    "artist_name": "Billy Strings",
+    "url": "https://www.billystrings.com/tour",
+    "filename": "fixtures/tour-pages/axs/billy-strings-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 234638,
+    "detection_signals": [
+      "axs\\.com"
+    ],
+    "notes": "Same page as ticketmaster fixture; includes axs.com ticket links. Auto-detected as ticketmaster.",
+    "detected_provider": "ticketmaster"
+  },
+  {
+    "provider": "squarespace-events",
+    "artist_name": "Maggie Rogers",
+    "url": "https://maggierogers.com/join",
+    "filename": "fixtures/tour-pages/squarespace-events/maggie-rogers-join.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 93910,
+    "detection_signals": [
+      "squarespace-events-collection",
+      "squarespace-tourdates"
+    ],
+    "notes": ""
+  },
+  {
+    "provider": "squarespace-events",
+    "artist_name": "Death Cab for Cutie",
+    "url": "https://www.deathcabforcutie.com/tour",
+    "filename": "fixtures/tour-pages/squarespace-events/death-cab-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 142785,
+    "detection_signals": [
+      "squarespace-events-collection",
+      "squarespace-tourdates"
+    ],
+    "notes": ""
+  },
+  {
+    "provider": "songkick",
+    "artist_name": "Job Alone & Friends",
+    "url": "https://www.jobalone.band/tourdates/",
+    "filename": "fixtures/tour-pages/songkick/job-alone-tourdates.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 96228,
+    "detection_signals": [
+      "widget\\.songkick\\.com",
+      "songkick-widget"
+    ],
+    "notes": ""
+  },
+  {
+    "provider": "eventbrite",
+    "artist_name": "Emily Rose",
+    "url": "https://www.emilyrosemusic.com/tour",
+    "filename": "fixtures/tour-pages/eventbrite/emily-rose-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 289088,
+    "detection_signals": [
+      "eventbrite"
+    ],
+    "notes": ""
+  },
+  {
+    "provider": "dice",
+    "artist_name": "Hannah Grae",
+    "url": "https://www.hannahgrae.com/tour",
+    "filename": "fixtures/tour-pages/dice/hannah-grae-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 130826,
+    "detection_signals": [
+      "dice\\.fm"
+    ],
+    "notes": ""
+  },
+  {
+    "provider": "dice",
+    "artist_name": "Anoushka Lucas",
+    "url": "https://www.anoushkalucas.com/tour",
+    "filename": "fixtures/tour-pages/dice/anoushka-lucas-tour.html",
+    "fetched_at": null,
+    "http_status": null,
+    "byte_size": 442234,
+    "detection_signals": [
+      "dice\\.fm"
+    ],
+    "notes": ""
+  }
+]

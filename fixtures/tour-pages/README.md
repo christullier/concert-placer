@@ -27,6 +27,14 @@ Direct Bandsintown artist URLs follow the same runtime pattern: `get_tour()` rea
 env/bin/python scripts/fetch_tour_fixtures.py
 ```
 
+To rebuild `manifest.json` from the HTML already on disk without refetching anything:
+
+```bash
+env/bin/python scripts/fetch_tour_fixtures.py --offline
+```
+
+`manifest.json` is committed; `.gitignore` excepts it from the repo-wide `*.json` rule.
+
 ## Run tests
 
 ```bash
