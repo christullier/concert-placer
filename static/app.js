@@ -178,14 +178,21 @@ const POPUP_EDGE_PADDING = [24, 24];
 const SITE_TITLE = "Concert";
 const SAVED_ARTIST_SCROLL_SPEED = 18;
 
-// Verified snapshot of artists with upcoming shows resolvable in this app (July 2026).
+// Verified snapshot of artists with 3+ upcoming shows resolvable in this app (October 2026).
 // Used only as cycling placeholder text in the artist search field.
 const POPULAR_ARTISTS = [
-  "Harry Styles", "Big Thief", "Mac DeMarco", "Bleachers", "Death Cab for Cutie",
-  "Noah Kahan", "Jimmy Eat World", "Goose", "Manchester Orchestra",
-  "Queens of the Stone Age", "Tedeschi Trucks Band", "Foo Fighters",
-  "The Mountain Goats", "Royal Blood", "Lorde", "Caamp", "Sylvan Esso",
-  "Turnstile", "Jay Som", "Trampled by Turtles",
+  "The Weeknd", "Olivia Rodrigo", "Harry Styles", "Travis Scott", "Zach Bryan",
+  "Luke Combs", "Noah Kahan", "Doja Cat", "Bruno Mars", "Ed Sheeran", "Metallica",
+  "Foo Fighters", "Blink-182", "Tame Impala", "The Strokes", "Sylvan Esso",
+  "Phoebe Bridgers", "Snail Mail", "Soccer Mommy", "Wednesday", "Alex G", "Thundercat",
+  "Leon Bridges", "Two Door Cinema Club", "Portugal. The Man", "Foster the People",
+  "Odesza", "Bonobo", "Four Tet", "Caribou", "Fred again..", "Disclosure", "Kaytranada",
+  "Jamie xx", "Interpol", "The War on Drugs", "Father John Misty", "Kurt Vile",
+  "Cage the Elephant", "Modest Mouse", "Death Cab for Cutie", "Turnstile",
+  "Fontaines D.C.", "Black Country, New Road", "Beabadoobee", "Remi Wolf",
+  "Dominic Fike", "Mac DeMarco", "Bleachers", "Jimmy Eat World", "Goose",
+  "Manchester Orchestra", "Queens of the Stone Age", "Tedeschi Trucks Band",
+  "The Mountain Goats", "Royal Blood", "Trampled by Turtles",
 ];
 
 let placeholderCycleTimer = null;
