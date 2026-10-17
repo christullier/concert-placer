@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Download artist tour-page HTML fixtures and write manifest.json."""
+"""Download artist tour-page HTML fixtures and write manifest.json.
+
+Pass --offline to rebuild manifest.json from the HTML files already on disk
+without fetching anything (http_status and fetched_at are left null).
+"""
 
 from __future__ import annotations
 
@@ -73,7 +77,7 @@ def detection_signals(html: str, provider: str) -> list[str]:
     return signals
 
 
-def build_entry(spec: dict[str, str], *, fetched_at: str, http_status: int, byte_size: int, signals: list[str]) -> dict:
+def build_entry(spec: dict[str, str], *, fetched_at: str | None, http_status: int | None, byte_size: int, signals: list[str]) -> dict:
     rel_path = f"fixtures/tour-pages/{spec['provider']}/{spec['slug']}.html"
     notes = ""
     if spec["provider"] == "seated":
@@ -93,47 +97,57 @@ def build_entry(spec: dict[str, str], *, fetched_at: str, http_status: int, byte
     }
 
 
-def main() -> int:
-    sys.path.insert(0, str(ROOT))
+def manifest_entry(spec: dict[str, str], body: bytes, *, http_status: int | None, fetched_at: str | None) -> dict:
     from finder import detect_tour_provider, get_artist_id_from_html
 
+    html = body.decode("utf-8", errors="replace")
+    signals = detection_signals(html, spec["provider"])
+    detected = detect_tour_provider(html)
+    entry = build_entry(
+        spec,
+        fetched_at=fetched_at,
+        http_status=http_status,
+        byte_size=len(body),
+        signals=signals,
+    )
+    if detected and detected != spec["provider"]:
+        entry["detected_provider"] = detected
+        entry["notes"] = (entry["notes"] + f" Auto-detected as {detected}.").strip()
+    if spec["provider"] == "seated":
+        try:
+            entry["seated_artist_id"] = get_artist_id_from_html(html)
+        except RuntimeError:
+            entry["notes"] = (entry["notes"] + " Missing artist-id.").strip()
+    return entry
+
+
+def main() -> int:
+    sys.path.insert(0, str(ROOT))
+    offline = "--offline" in sys.argv[1:]
+
     manifest: list[dict] = []
-    fetched_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    fetched_at = None if offline else datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     last_host = ""
 
     for spec in FIXTURES:
-        host = spec["url"].split("/")[2]
-        if host == last_host:
-            time.sleep(1)
-        last_host = host
+        output_path = FIXTURES_DIR / spec["provider"] / f"{spec['slug']}.html"
 
-        provider_dir = FIXTURES_DIR / spec["provider"]
-        provider_dir.mkdir(parents=True, exist_ok=True)
-        output_path = provider_dir / f"{spec['slug']}.html"
+        if offline:
+            if not output_path.is_file():
+                raise SystemExit(f"Missing fixture file: {output_path}")
+            http_status, body = None, output_path.read_bytes()
+        else:
+            host = spec["url"].split("/")[2]
+            if host == last_host:
+                time.sleep(1)
+            last_host = host
 
-        print(f"Fetching {spec['url']} ...", flush=True)
-        http_status, body = fetch_url(spec["url"])
-        output_path.write_bytes(body)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            print(f"Fetching {spec['url']} ...", flush=True)
+            http_status, body = fetch_url(spec["url"])
+            output_path.write_bytes(body)
 
-        html = body.decode("utf-8", errors="replace")
-        signals = detection_signals(html, spec["provider"])
-        detected = detect_tour_provider(html)
-        entry = build_entry(
-            spec,
-            fetched_at=fetched_at,
-            http_status=http_status,
-            byte_size=len(body),
-            signals=signals,
-        )
-        if detected and detected != spec["provider"]:
-            entry["detected_provider"] = detected
-            entry["notes"] = (entry["notes"] + f" Auto-detected as {detected}.").strip()
-        if spec["provider"] == "seated":
-            try:
-                entry["seated_artist_id"] = get_artist_id_from_html(html)
-            except RuntimeError:
-                entry["notes"] = (entry["notes"] + " Missing artist-id.").strip()
-        manifest.append(entry)
+        manifest.append(manifest_entry(spec, body, http_status=http_status, fetched_at=fetched_at))
 
     for provider, note in SEARCH_NOTES.items():
         manifest.append(

@@ -8,5 +8,6 @@ __pycache__/
 !requirements.txt
 *.json
 !vercel.json
+!fixtures/tour-pages/manifest.json
 env/
 .vercel
