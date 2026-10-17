@@ -55,7 +55,8 @@ ARTIST_PAGE_PROBE_TIMEOUT_SECONDS = 8
 USER_AGENT = "Mozilla/5.0 (compatible; concert-placer/1.0)"
 MUSICBRAINZ_USER_AGENT = os.getenv(
     "MUSICBRAINZ_USER_AGENT",
-    "concert-placer/1.0",
+    # MusicBrainz requires "app/version ( contact )"; generic agents get 503s.
+    "concert-placer/1.0 ( https://github.com/christullier/concert-placer )",
 )
 
 _musicbrainz_lock = asyncio.Lock()
