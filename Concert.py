@@ -17,6 +17,7 @@ class Concert:
     lng: float | None = None
     distance: float | None = None
     distance_is_estimated: bool = False
+    distance_is_straight_line: bool = False
     is_drivable: bool = True
     navigation_error: str | None = None
     ticket_url: str | None = None
@@ -68,6 +69,10 @@ class Concert:
 
         if self.is_sold_out:
             print("**SOLD OUT**")
+            return
+
+        if self.distance_is_straight_line and self.distance is not None:
+            print(f"~{self.distance} miles (straight line, no driving route)")
             return
 
         if not self.is_drivable:

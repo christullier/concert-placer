@@ -4,6 +4,7 @@ const COLORS = {
   drivable: "#3348ff",
   estimated: "#7655c9",
   soldOut: "#ff6044",
+  overseas: "#2f8f83",
   unreachable: "#c83328",
   start: "#d8ff3e",
 };
@@ -23,6 +24,7 @@ const THEMES = [
       drivable: "#3348ff",
       estimated: "#7655c9",
       soldOut: "#ff6044",
+      overseas: "#2f8f83",
       unreachable: "#c83328",
       start: "#d8ff3e",
     },
@@ -35,6 +37,7 @@ const THEMES = [
       drivable: "#1aa6e0",
       estimated: "#7a5fd4",
       soldOut: "#ff8a65",
+      overseas: "#2bb5a0",
       unreachable: "#e04545",
       start: "#b8f26a",
     },
@@ -47,6 +50,7 @@ const THEMES = [
       drivable: "#0000ee",
       estimated: "#ff00ff",
       soldOut: "#ff0000",
+      overseas: "#008080",
       unreachable: "#800000",
       start: "#00ff00",
     },
@@ -59,6 +63,7 @@ const THEMES = [
       drivable: "#6b8cff",
       estimated: "#9b7ad4",
       soldOut: "#f0a08c",
+      overseas: "#6fb8ad",
       unreachable: "#d46565",
       start: "#8fd6b5",
     },
@@ -674,6 +679,7 @@ function addLegend() {
     div.innerHTML = [
       ["drivable", "Drivable"],
       ["estimated", "Estimated"],
+      ["overseas", "Overseas"],
       ["soldOut", "Sold out"],
       ["unreachable", "Unreachable"],
       ["start", "Start"],
@@ -690,6 +696,7 @@ function addLegend() {
 
 function concertColor(concert) {
   if (concert.is_sold_out) return COLORS.soldOut;
+  if (concert.distance_is_straight_line) return COLORS.overseas;
   if (!concert.is_drivable) return COLORS.unreachable;
   if (concert.distance_is_estimated) return COLORS.estimated;
   return COLORS.drivable;
@@ -802,12 +809,16 @@ function displayVenue(name) {
 
 function statusChip(concert) {
   if (concert.is_sold_out) return '<span class="chip chip-soldout">Sold out</span>';
+  if (concert.distance_is_straight_line) return "";
   if (!concert.is_drivable) return '<span class="chip chip-unreachable">Unreachable</span>';
   return "";
 }
 
 function distanceBadgeHtml(concert) {
   if (concert.distance == null) return "";
+  if (concert.distance_is_straight_line) {
+    return `<span class="badge-distance straight-line" title="Straight-line distance (no driving route)">✈ ${Math.round(concert.distance).toLocaleString()} mi</span>`;
+  }
   const estimated = Boolean(concert.distance_is_estimated);
   const className = estimated ? "badge-distance estimated" : "badge-distance";
   const title = estimated ? ' title="Estimated road distance"' : "";
@@ -1138,13 +1149,16 @@ function popupHtml(concert) {
   ];
   if (concert.distance != null) {
     lines.push(
-      concert.distance_is_estimated
-        ? `≈${Math.round(concert.distance)} mi estimated`
-        : `${Math.round(concert.distance)} mi drive`
+      concert.distance_is_straight_line
+        ? `${Math.round(concert.distance).toLocaleString()} mi as the crow flies`
+        : concert.distance_is_estimated
+          ? `≈${Math.round(concert.distance)} mi estimated`
+          : `${Math.round(concert.distance)} mi drive`
     );
   }
   if (concert.is_sold_out) lines.push("Sold out");
-  else if (!concert.is_drivable) lines.push("Unreachable by road");
+  else if (!concert.is_drivable && !concert.distance_is_straight_line)
+    lines.push("Unreachable by road");
   const tickets = ticketLinkHtml(concert, "popup-tickets");
   if (tickets) lines.push(tickets);
   return lines.join("<br>");

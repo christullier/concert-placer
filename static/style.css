@@ -1205,6 +1205,11 @@ body.search-loading .status.search-status {
   color: #7655c9;
 }
 
+.badge-distance.straight-line {
+  border-style: dotted;
+  color: #2f8f83;
+}
+
 .card-city {
   margin-top: 4px;
   color: var(--ink-soft);

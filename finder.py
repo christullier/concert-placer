@@ -70,6 +70,7 @@ _musicbrainz_lock = asyncio.Lock()
 _last_musicbrainz_request = 0.0
 _fallback_geocoder_lock = asyncio.Lock()
 _fallback_geocode_cache: dict[str, dict | None] = {}
+_start_geocode_tasks: dict[str, asyncio.Task] = {}
 _last_fallback_geocoder_request = 0.0
 _google_maps_semaphore = asyncio.Semaphore(4)
 _google_maps_disabled_until = 0.0
@@ -1548,6 +1549,49 @@ def estimated_road_distance_miles(
     )
 
 
+def road_landmass(lat: float, lng: float) -> str | None:
+    """Coarsely classify a point by road-connected landmass, without any API call.
+
+    Boxes are deliberately conservative: anything near a boundary returns None so
+    the caller still asks Directions. Islands fall inside their nearest landmass
+    and are left to Google's ZERO_RESULTS.
+    """
+    if -168 <= lng <= -30:
+        if lat >= 60 and lng > -95:
+            return None  # Arctic Canada / Greenland: no road network to speak of.
+        if -56 <= lat < 12.5 and lng > -82:
+            # The Darien Gap leaves no road between Panama and Colombia.
+            if lng > -77 or lat < 7:
+                return "south_america"
+            if lng < -78:
+                return "north_america"
+            return None
+        if 7 <= lat <= 84:
+            return "north_america"
+        return None
+    if -26 <= lng <= 180:
+        if lat > 62 and lng < -10:
+            return None  # Iceland
+        if -44 <= lat < -10.5 and 112 <= lng <= 154.5:
+            return "australia"
+        if -48 <= lat <= -34 and 166 <= lng <= 179:
+            return "new_zealand"
+        if -36 <= lat <= 82:
+            return "afro_eurasia"
+    return None
+
+
+def different_road_landmasses(
+    start_lat: float,
+    start_lng: float,
+    destination_lat: float,
+    destination_lng: float,
+) -> bool:
+    start = road_landmass(start_lat, start_lng)
+    destination = road_landmass(destination_lat, destination_lng)
+    return start is not None and destination is not None and start != destination
+
+
 async def geocode(query: str, api_key: str) -> dict | None:
     if api_key:
         url = build_url(GEOCODE_URL, {"address": query, "key": api_key})
@@ -1566,7 +1610,25 @@ async def geocode(query: str, api_key: str) -> dict | None:
 
 
 async def geocode_start(start_location: str, api_key: str) -> dict | None:
-    return await geocode(start_location, api_key)
+    """Geocode the start location once per query, sharing in-flight lookups.
+
+    Every concert in a request needs the start point, and app.py geocodes it
+    concurrently with the tour fetch, so concurrent callers await one task.
+    Failed lookups are not kept, so the next request retries.
+    """
+    cache_key = _fallback_geocode_cache_key(start_location)
+    loop = asyncio.get_running_loop()
+    task = _start_geocode_tasks.get(cache_key)
+    if task is not None:
+        if task.done():
+            if not task.cancelled() and task.exception() is None and task.result():
+                return task.result()
+        elif task.get_loop() is loop:
+            return await asyncio.shield(task)
+
+    task = loop.create_task(geocode(start_location, api_key))
+    _start_geocode_tasks[cache_key] = task
+    return await asyncio.shield(task)
 
 
 async def get_address(concert: Concert, api_key: str) -> str | None:
@@ -1593,9 +1655,25 @@ async def get_address(concert: Concert, api_key: str) -> str | None:
     return location["address"]
 
 
+def use_straight_line_distance(concert: Concert, start: dict) -> float:
+    """Record an as-the-crow-flies distance for a show no road reaches."""
+    concert.is_drivable = False
+    concert.distance_is_straight_line = True
+    return round(
+        straight_line_distance_miles(start["lat"], start["lng"], concert.lat, concert.lng),
+        2,
+    )
+
+
 async def get_travel_distance(concert: Concert, api_key: str, start_location: str) -> float | None:
     if not concert.address:
         return None
+
+    has_coords = concert.lat is not None and concert.lng is not None
+    start = await geocode_start(start_location, api_key) if has_coords else None
+    # Skip Directions entirely when the start and venue sit on different landmasses.
+    if start and different_road_landmasses(start["lat"], start["lng"], concert.lat, concert.lng):
+        return use_straight_line_distance(concert, start)
 
     if api_key:
         url = build_url(
@@ -1612,11 +1690,12 @@ async def get_travel_distance(concert: Concert, api_key: str, start_location: st
             length_meters = travel_json["routes"][0]["legs"][0]["distance"]["value"]
             return round(int(length_meters) / METERS_PER_MILE, 2)
         if travel_json and travel_json.get("status") == "ZERO_RESULTS":
+            if start:
+                return use_straight_line_distance(concert, start)
             concert.mark_navigation_error("directions: ZERO_RESULTS")
             return None
 
-    start = await fallback_geocode(start_location)
-    if not start or concert.lat is None or concert.lng is None:
+    if not start:
         concert.mark_navigation_error("distance estimate unavailable")
         return None
 
