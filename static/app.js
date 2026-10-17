@@ -1364,6 +1364,12 @@ function displayConcertResults(data, { shared = false } = {}) {
   el("results-section").hidden = false;
   renderArtistHeader();
   renderShareControl();
+  // A fresh search shouldn't land on an empty list just because the active
+  // filters hide every show — fall back to showing everything instead.
+  if (!state.concerts.some(matchesFilters)) {
+    state.filters = { ...OPEN_FILTERS };
+    syncFilterControls();
+  }
   render();
   enterResultsMode();
   if (!shared) loadSavedArtists();
