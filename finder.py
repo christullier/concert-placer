@@ -10,6 +10,7 @@ import time
 from typing import Any, Callable
 from urllib.parse import quote, urlparse
 from urllib.parse import urlencode
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
@@ -58,6 +59,12 @@ MUSICBRAINZ_USER_AGENT = os.getenv(
     # MusicBrainz requires "app/version ( contact )"; generic agents get 503s.
     "concert-placer/1.0 ( https://github.com/christullier/concert-placer )",
 )
+
+# MusicBrainz sheds load with intermittent 503s even for well-behaved clients,
+# so retry a few times with backoff (honoring Retry-After) before giving up.
+MUSICBRAINZ_RETRY_STATUSES = {429, 503}
+MUSICBRAINZ_MAX_ATTEMPTS = 4
+MUSICBRAINZ_MAX_RETRY_DELAY_SECONDS = 8
 
 _musicbrainz_lock = asyncio.Lock()
 _last_musicbrainz_request = 0.0
@@ -167,13 +174,27 @@ async def read_musicbrainz_json_async(url: str) -> dict:
     global _last_musicbrainz_request
 
     async with _musicbrainz_lock:
-        elapsed = time.monotonic() - _last_musicbrainz_request
-        if elapsed < 1:
-            await asyncio.sleep(1 - elapsed)
-        try:
-            return await read_json_async(url, user_agent=MUSICBRAINZ_USER_AGENT)
-        finally:
-            _last_musicbrainz_request = time.monotonic()
+        for attempt in range(1, MUSICBRAINZ_MAX_ATTEMPTS + 1):
+            elapsed = time.monotonic() - _last_musicbrainz_request
+            if elapsed < 1:
+                await asyncio.sleep(1 - elapsed)
+            try:
+                return await read_json_async(url, user_agent=MUSICBRAINZ_USER_AGENT)
+            except HTTPError as exc:
+                if exc.code not in MUSICBRAINZ_RETRY_STATUSES or attempt == MUSICBRAINZ_MAX_ATTEMPTS:
+                    raise
+                await asyncio.sleep(musicbrainz_retry_delay(exc, attempt))
+            finally:
+                _last_musicbrainz_request = time.monotonic()
+
+
+def musicbrainz_retry_delay(exc: HTTPError, attempt: int) -> float:
+    retry_after = exc.headers.get("Retry-After") if exc.headers else None
+    try:
+        delay = float(retry_after)
+    except (TypeError, ValueError):
+        delay = float(2 ** (attempt - 1))
+    return min(max(delay, 0.0), MUSICBRAINZ_MAX_RETRY_DELAY_SECONDS)
 
 
 def get_artist_id_from_html(html: str) -> str:
