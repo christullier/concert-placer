@@ -9,24 +9,11 @@ const COLORS = {
 };
 
 const THEME_STORAGE_KEY = "concert-placer:theme";
+// CARTO stopped serving keyless raster tiles (Sept 2026), so every theme uses
+// the standard OSM tiles; theme looks come from CSS filters on the tile pane.
+const MAP_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const MAP_TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
-const MAP_BASEMAPS = {
-  default: {
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-  },
-  "frutiger-aero": {
-    url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-  },
-  // Dark tiles keep neon vernacular pins readable; light+hue-rotate washed the map out.
-  vernacular: {
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-  },
-  // Soft gray canvas matches extruded UI without crushing contrast.
-  neumorphism: {
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-  },
-};
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const THEMES = [
   {
     id: "default",
@@ -102,25 +89,20 @@ function writeStoredThemeId(id) {
   }
 }
 
-function applyThemeBasemap(themeId) {
+function applyThemeBasemap() {
   if (!map) return;
-  const basemap = MAP_BASEMAPS[themeId] || MAP_BASEMAPS.default;
-  if (baseLayer && baseLayer._url === basemap.url) {
-    requestAnimationFrame(() => map.invalidateSize());
-    return;
+  if (!baseLayer) {
+    baseLayer = L.tileLayer(MAP_TILE_URL, {
+      maxZoom: 19,
+      attribution: MAP_TILE_ATTRIBUTION,
+    }).addTo(map);
   }
-  if (baseLayer) map.removeLayer(baseLayer);
-  baseLayer = L.tileLayer(basemap.url, {
-    maxZoom: 19,
-    attribution: MAP_TILE_ATTRIBUTION,
-  }).addTo(map);
   // Theme swaps can change chrome around the map; force Leaflet to reflow.
   requestAnimationFrame(() => map.invalidateSize());
 }
 
 function refreshThemeDependentUi() {
-  const themeId = document.documentElement.getAttribute("data-theme") || "default";
-  applyThemeBasemap(themeId);
+  applyThemeBasemap();
 
   document.querySelectorAll(".legend .dot").forEach((dot) => {
     const key = dot.dataset.color;
@@ -581,7 +563,7 @@ function readEmbeddedSharedSearch() {
 
 function initMap() {
   map = L.map("map", { zoomControl: false }).setView([39.5, -98.35], 4);
-  applyThemeBasemap(document.documentElement.getAttribute("data-theme") || "default");
+  applyThemeBasemap();
   L.control.zoom({ position: "topright" }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
 }

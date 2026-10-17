@@ -2558,9 +2558,9 @@ html[data-theme="vernacular"] .leaflet-container {
   color: #000;
 }
 
-/* Dark basemap already carries the look — keep tiles crisp, not hue-rotated. */
+/* OSM has no dark tiles: invert, then rotate hues back so water stays blue. */
 html[data-theme="vernacular"] .leaflet-tile-pane {
-  filter: none;
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
 }
 
 html[data-theme="vernacular"] .leaflet-popup-content-wrapper,
