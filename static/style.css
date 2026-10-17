@@ -1354,6 +1354,16 @@ body.has-results .map-back:not([hidden]) {
   display: grid;
 }
 
+/* On desktop the results rail floats over the map's top-left corner, and the
+   back button lives in the map's stacking context below it, so sit it just
+   right of the rail instead (rail: 20px inset + its width). */
+@media (min-width: 901px) {
+  body.has-results .map-back {
+    top: 20px;
+    left: calc(20px + min(420px, 100vw - 40px) + 16px);
+  }
+}
+
 /* Sharing lives at the top-right of the map, mirroring the back button, so the
    whole result is one tap away from a copyable link. Icon-only — the label
    would only crowd the map. */
