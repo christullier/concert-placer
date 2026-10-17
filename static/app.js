@@ -561,8 +561,103 @@ function readEmbeddedSharedSearch() {
 
 /* ---------- map ---------- */
 
+// Leaflet's stock wheel zoom snaps a whole level per notch and restarts its
+// 250ms animation on every event, which reads as choppy on desktop. This
+// eases toward a fractional target zoom each frame instead, keeping the point
+// under the cursor fixed. Touch pinch-zoom is a separate handler, unaffected.
+const WHEEL_PX_PER_ZOOM_LEVEL = 100;
+const WHEEL_ZOOM_EASING = 0.25;
+const WHEEL_IDLE_MS = 200;
+
+function createSmoothWheelZoom() {
+  return L.Handler.extend({
+    addHooks() {
+      L.DomEvent.on(this._map.getContainer(), "wheel", this._onWheel, this);
+    },
+
+    removeHooks() {
+      L.DomEvent.off(this._map.getContainer(), "wheel", this._onWheel, this);
+      this._finish();
+    },
+
+    _onWheel(event) {
+      L.DomEvent.stop(event);
+      const map = this._map;
+      this._idle = false;
+      if (!this._active) {
+        map.stop();
+        this._active = true;
+        this._moved = false;
+        this._goalZoom = map.getZoom();
+        this._frame = requestAnimationFrame(() => this._step());
+      }
+      const delta = L.DomEvent.getWheelDelta(event) / WHEEL_PX_PER_ZOOM_LEVEL;
+      this._goalZoom = Math.min(
+        map.getMaxZoom(),
+        Math.max(map.getMinZoom(), this._goalZoom + delta),
+      );
+      this._anchorPoint = map.mouseEventToContainerPoint(event);
+      this._anchorLatLng = map.containerPointToLatLng(this._anchorPoint);
+      clearTimeout(this._idleTimer);
+      this._idleTimer = setTimeout(() => {
+        this._idle = true;
+      }, WHEEL_IDLE_MS);
+    },
+
+    _step() {
+      const map = this._map;
+      // Another interaction (drag, fitBounds) moved the map; yield to it.
+      if (
+        this._moved &&
+        (map.getZoom() !== this._lastZoom ||
+          !map.getCenter().equals(this._lastCenter))
+      ) {
+        this._finish();
+        return;
+      }
+      const current = map.getZoom();
+      const remaining = this._goalZoom - current;
+      const zoom =
+        Math.abs(remaining) < 0.001
+          ? this._goalZoom
+          : current + remaining * WHEEL_ZOOM_EASING;
+      if (zoom !== current) {
+        const offset = this._anchorPoint.subtract(map.getSize().divideBy(2));
+        const center = map.unproject(
+          map.project(this._anchorLatLng, zoom).subtract(offset),
+          zoom,
+        );
+        if (!this._moved) {
+          map._moveStart(true, false);
+          this._moved = true;
+        }
+        map._move(center, zoom);
+        this._lastZoom = map.getZoom();
+        this._lastCenter = map.getCenter();
+      } else if (this._idle) {
+        this._finish();
+        return;
+      }
+      this._frame = requestAnimationFrame(() => this._step());
+    },
+
+    _finish() {
+      if (!this._active) return;
+      this._active = false;
+      cancelAnimationFrame(this._frame);
+      clearTimeout(this._idleTimer);
+      if (this._moved) this._map._moveEnd(true);
+    },
+  });
+}
+
 function initMap() {
-  map = L.map("map", { zoomControl: false }).setView([39.5, -98.35], 4);
+  map = L.map("map", { zoomControl: false, scrollWheelZoom: false }).setView(
+    [39.5, -98.35],
+    4,
+  );
+  map.addHandler("smoothWheelZoom", createSmoothWheelZoom());
+  map.smoothWheelZoom.enable();
   applyThemeBasemap();
   L.control.zoom({ position: "topright" }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
